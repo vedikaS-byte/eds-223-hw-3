@@ -1,9 +1,107 @@
 ---
-title: "eds-223-hw-3"
-format: html
+title: "Identifying the impacts of extreme weather"
+author: "Vedika Shirtekar" 
+date: "11/8/2025"
+format:
+  pdf: 
+    code-fold: false
+execute: 
+  warning: false
+  message: false
+editor: 
+  markdown: 
+    wrap: 72
+editor_options: 
+  chunk_output_type: console
 ---
 
+## Primary Objective
+### Read in data and neccessary libraries
 
+To complete complete the tasks of this assignment, you will need to break your analysis into the following key steps:
+
+- find locations that experienced a blackout by creating a mask
+- exclude highways from analysis
+- identify homes that experienced blackouts by combining the locations of homes and blackouts
+- identify the census tracts likely impacted by blackout
+
+
+
+```{r}
+#| output: false
+# Import packages
+library(here) # Load "here" to locate and reference files
+library(tidyverse) # Load the tidyverse" for data cleaning
+library(sf) # Load "sf" for GIS analysis
+library(raster) # Load "raster" for accessing raster data types
+library(ggplot2) # Load "ggplot2" for data visualization
+library(tmap) # Load "tmap" for functions to create and layer maps
+library(kableExtra) # Load "kableExtra" for table formatting
+```
+
+
+# Load in data
+
+```{r}
+#| output: false 
+# Night lights... a raster
+lights1 <- raster(here::here("data", "VNP46A1", "VNP46A1.A2021038.h08v05.001.2021039064328.tif"))
+
+lights2 <- raster(here::here("data", "VNP46A1", "VNP46A1.A2021038.h08v06.001.2021039064329.tif"))
+
+lights3 <- raster(here::here("data", "VNP46A1", "VNP46A1.A2021047.h08v05.001.2021048091106.tif"))
+
+lights4 <- raster(here::here("data", "VNP46A1", "VNP46A1.A2021047.h08v06.001.2021048091105.tif"))
+
+# Roads
+roads <- read_sf(here::here("data", "gis_osm_roads_free_1.gpkg"))
+
+# Houses
+houses <- read_sf(here::here("data", "gis_osm_buildings_a_free_1.gpkg"))
+
+# Socioeconomic
+# You can use st_layers() to explore the contents of the geodatabase. Each layer contains a subset of the fields documents in the ACS metadata.
+# 
+# The geodatabase contains a layer holding the geometry information (ACS_2019_5YR_TRACT_48_TEXAS), separate from the layers holding the ACS attributes. You have to combine the geometry with the attributes to get a feature layer that sf can use.
+
+st_layers(here("data", "ACS_2019_5YR_TRACT_48_TEXAS.gdb"))
+
+# Read in geom layer
+geometry_socio <- read_sf(here("data", "ACS_2019_5YR_TRACT_48_TEXAS.gdb"),
+                    layer = "ACS_2019_5YR_TRACT_48_TEXAS")
+
+# Read in attribute data 
+attributes_socio <- read_sf(here("data", "ACS_2019_5YR_TRACT_48_TEXAS.gdb"),
+                      layer = "X01_AGE_AND_SEX")
+
+# Join 
+names(geometry_socio)
+names(attributes_socio)
+
+# Perform left join for combination
+socioeconomic <- geometry_socio %>%
+  left_join(attributes_socio, by = c("GEOID_Data" = "GEOID"))
+
+
+colSums(is.na(socioeconomic))
+
+socioeconomic <- read_sf(socioeconomic)
+
+
+
+```
+
+
+```{r}
+# Do CRS match? 
+```
+
+
+
+## Create a mask 
+```{r}
+
+```
 
 
 
