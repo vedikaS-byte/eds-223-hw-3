@@ -37,6 +37,7 @@ library(raster) # Load "raster" for accessing raster data types
 library(ggplot2) # Load "ggplot2" for data visualization
 library(tmap) # Load "tmap" for functions to create and layer maps
 library(kableExtra) # Load "kableExtra" for table formatting
+library(stars)
 ```
 
 
@@ -45,47 +46,32 @@ library(kableExtra) # Load "kableExtra" for table formatting
 ```{r}
 #| output: false 
 # Night lights... a raster
-lights1 <- raster(here::here("data", "VNP46A1", "VNP46A1.A2021038.h08v05.001.2021039064328.tif"))
 
-lights2 <- raster(here::here("data", "VNP46A1", "VNP46A1.A2021038.h08v06.001.2021039064329.tif"))
+lights1 <- read_stars(here::here("data", "VNP46A1", "VNP46A1.A2021038.h08v05.001.2021039064328.tif"))
 
-lights3 <- raster(here::here("data", "VNP46A1", "VNP46A1.A2021047.h08v05.001.2021048091106.tif"))
+lights2 <- read_stars(here::here("data", "VNP46A1", "VNP46A1.A2021038.h08v06.001.2021039064329.tif"))
 
-lights4 <- raster(here::here("data", "VNP46A1", "VNP46A1.A2021047.h08v06.001.2021048091105.tif"))
+lights3 <- read_stars(here::here("data", "VNP46A1", "VNP46A1.A2021047.h08v05.001.2021048091106.tif"))
+
+lights4 <- read_stars(here::here("data", "VNP46A1", "VNP46A1.A2021047.h08v06.001.2021048091105.tif"))
 
 # Roads
 roads <- read_sf(here::here("data", "gis_osm_roads_free_1.gpkg"))
 
 # Houses
 houses <- read_sf(here::here("data", "gis_osm_buildings_a_free_1.gpkg"))
+# st_read(fielpath, quaery = "pass for houses")
+# st_read(fielpath, quaery = "pass for roads")
+
 
 # Socioeconomic
 # You can use st_layers() to explore the contents of the geodatabase. Each layer contains a subset of the fields documents in the ACS metadata.
 # 
 # The geodatabase contains a layer holding the geometry information (ACS_2019_5YR_TRACT_48_TEXAS), separate from the layers holding the ACS attributes. You have to combine the geometry with the attributes to get a feature layer that sf can use.
 
-st_layers(here("data", "ACS_2019_5YR_TRACT_48_TEXAS.gdb"))
 
-# Read in geom layer
-geometry_socio <- read_sf(here("data", "ACS_2019_5YR_TRACT_48_TEXAS.gdb"),
-                    layer = "ACS_2019_5YR_TRACT_48_TEXAS")
+# st_read(fielpath, layer = "says texas")
 
-# Read in attribute data 
-attributes_socio <- read_sf(here("data", "ACS_2019_5YR_TRACT_48_TEXAS.gdb"),
-                      layer = "X01_AGE_AND_SEX")
-
-# Join 
-names(geometry_socio)
-names(attributes_socio)
-
-# Perform left join for combination
-socioeconomic <- geometry_socio %>%
-  left_join(attributes_socio, by = c("GEOID_Data" = "GEOID"))
-
-
-colSums(is.na(socioeconomic))
-
-socioeconomic <- read_sf(socioeconomic)
 
 
 
@@ -94,14 +80,164 @@ socioeconomic <- read_sf(socioeconomic)
 
 ```{r}
 # Do CRS match? 
+st_crs(lights1)
+st_crs(lights2)
+st_crs(lights3)$name
+st_crs(lights4)$name
+
 ```
 
 
 
 ## Create a mask 
+To identify places that experienced a blackout, you should create a “mask” that indicates for each cell whether or not it experienced a blackout.
+
+- find the change in night lights intensity (presumably) caused by the storm
+- hint: this will require creating a raster object for each day (2021-02-07 and 2021-02-16)
+- reclassify the difference raster, assuming that any location that experienced a drop of more than 200 nW cm-2sr-1 experienced a blackout
+- assign NA to all locations that experienced a drop of less than 200 nW cm-2sr-1 change
+- vectorize the blackout mask
+- hint: use st_as_sf() to convert from a raster to a vector and fix any invalid geometries with st_make_valid()
+crop (spatially subset) the blackout mask to the Houston area as defined by the following coordinates:
+(-96.5, 29), (-96.5, 30.5), (-94.5, 30.5), (-94.5, 29)
+re-project the cropped blackout dataset to EPSG:3083 (NAD83 / Texas Centric Albers Equal Area)
+
+
 ```{r}
+# - find the change in night lights intensity (presumably) caused by the storm
+# - hint: this will require creating a raster object for each day (2021-02-07 and 2021-02-16)
+ 
+
+# Need to combine lights rasters for both days  (two for each, then subtract)
+# Subtract layers after combining 
+
+# c() for same attributes, same spatial extend and resolution, and different bands. Use when trying to stack data of the same attributes along third dimension (date) while making sure spatial respondence is maintained
+# st_mosaic for same thing except different spatial extent and same bands... use when you have multiple separate raster datasets that have different spatial coverages and would like to combine them into one
+
+# - reclassify the difference raster, assuming that any location that experienced a drop of more than 200 nW cm-2sr-1 experienced a blackout
+
+# VNP
+# combine obj of same day using st_mosaic
+lights_day1 <- st_mosaic(lights1, lights2)
+
+lights_day2 <-  st_mosaic(lights3, lights4)
+
+
+## Difference of true (more than 200) or false (less than 200)
+# ***feb 7 - feb 16.. HOWEVER, must have difference of more than 200; positive 200 for a drop... true (if more than 200)
+
+# # if areas are FALSE (if difference is greater than 200), then assign NAs (assign NA with indexing) --> get difference mask --> st_as_sf() ---> st_make_valid() --> now have vector_difference_mask****
+night_lights <- (lights_day1 - lights_day2) > 200 
+night_lights
+
+
+# - assign NA to all locations that experienced a drop of less than 200 nW cm-2sr-1 change
+# - vectorize the blackout mask
+# - hint: use st_as_sf() to convert from a raster to a vector and fix any invalid geometries with st_make_valid()
+
+
+# crop (spatially subset) the blackout mask to the Houston area as defined by the following coordinates:
+# (-96.5, 29), (-96.5, 30.5), (-94.5, 30.5), (-94.5, 29)
+## use st_bbox with these coordinatesOR st_points() with join... however, NOT layered spatial object with st_bbox(), so use st_as_sf() --> CRS 4326. Next, find where they intersect with difference mask... 
+## st_intersects(st_as_sf(st_bbox), vector_difference_mask) --> st_transform
+
+
+# re-project the cropped blackout dataset to EPSG:3083 (NAD83 / Texas Centric Albers Equal Area)
+
+
+
+
+
+
 
 ```
+
+
+
+## Exclude highways from the cropped blackout mask
+Highways may have experienced changes in their night light intensities that are unrelated to the storm. Therefore, you should excluded any locations within 200 meters of all highways in the Houston area.
+
+- identify areas within 200m of all highways
+- hint: you may need to use st_union
+- find areas that experienced blackouts that are further than 200m from a highway
+
+```{r}
+## st_intersection(): Certain feature that intersects BOTH
+## st_union(): return either or... if in A or B 
+
+## identify areas within 200m of all highways
+# need in all directions within 200 m... st_buffer() for around highways (uses units of layer... ALWAYS MAKE SURE ST_CRS()$UNITS) 
+# Then, disolve acutal highway and buffer with st_union() to get polygon
+
+
+# - hint: you may need to use st_union (aggregates data)
+# - find areas that experienced blackouts that are further than 200m from a highway
+# Now need to find areas further away than 200m from the polygon highways... st_diff/st_disjoint(st_buffer, st_union)
+
+```
+
+
+
+## Identify the number of homes likely impacted by blackouts
+identify homes that overlap with areas that experienced blackouts
+
+```{r}
+## buildings 
+## identify homes that overlap with areas that experienced blackouts
+# First, layer must be overlapped with areas with non-highway experience blackout (use final output from previous section with output of st_disjoint())
+# use any: st.intersection, st_within, st_contains... however, return a different amount of rows and cols... recall than st_intersection considers placement of houses on borders too
+
+# Would get number of homes that experienced blackouts 
+# homes that experienced blackout (create map and this # if the summary statistic)
+
+```
+
+## Socioeconomic 
+- Read in socioeconomic data
+- Interested in census track, median income, average income in these areas
+
+```{r}
+# Use a query 
+# Read in layers: Geom and income data set
+# Because two layers are within two different sf objects but are similar, can left join attributes by Geo_ID
+# Why left_join() instead of the spatial? 
+
+
+st_layers(here("data", "ACS_2019_5YR_TRACT_48_TEXAS.gdb"))
+
+# Read in geom layer
+# socioeconomic <- read_sf(here("data", "ACS_2019_5YR_TRACT_48_TEXAS.gdb"),
+#                     layer = "ACS_2019_5YR_TRACT_48_TEXAS")
+
+geometry_socio <- read_sf(here("data", "ACS_2019_5YR_TRACT_48_TEXAS.gdb"),
+                    layer = "ACS_2019_5YR_TRACT_48_TEXAS")
+
+
+## Read in attribute data 
+attributes_socio <- read_sf(here("data", "ACS_2019_5YR_TRACT_48_TEXAS.gdb"),
+                      layer = "X19_INCOME")
+
+
+
+# Join
+names(geometry_socio)
+names(attributes_socio)
+
+# Perform left join for combination
+socioeconomic <- geometry_socio %>%
+  left_join(attributes_socio, by = c("GEOID_Data" = "GEOID"))
+
+# st_transform, then st_join
+#socioeconomic <- socioeconomic %>% st_transform()
+str(socioeconomic)
+colSums(is.na(socioeconomic))
+
+# After st_join, do data wrangling to summarize median income by census tract
+
+
+```
+
+
 
 
 
