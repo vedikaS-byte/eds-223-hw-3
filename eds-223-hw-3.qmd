@@ -38,6 +38,8 @@ library(ggplot2) # Load "ggplot2" for data visualization
 library(tmap) # Load "tmap" for functions to create and layer maps
 library(kableExtra) # Load "kableExtra" for table formatting
 library(stars)
+library(terra)
+library(raster)
 ```
 
 
@@ -60,6 +62,7 @@ roads <- read_sf(here::here("data", "gis_osm_roads_free_1.gpkg"))
 
 # Houses
 houses <- read_sf(here::here("data", "gis_osm_buildings_a_free_1.gpkg"))
+houses
 # st_read(fielpath, quaery = "pass for houses")
 # st_read(fielpath, quaery = "pass for roads")
 
@@ -74,16 +77,40 @@ houses <- read_sf(here::here("data", "gis_osm_buildings_a_free_1.gpkg"))
 
 
 
-
 ```
 
 
 ```{r}
-# Do CRS match? 
-st_crs(lights1)
-st_crs(lights2)
-st_crs(lights3)$name
-st_crs(lights4)$name
+# Do the CRS match? Use 
+check_crs <- function(lights1, lights2, lights3, lights4, roads, houses) {
+  ref_crs <- crs(lights1)
+  
+  if (crs(lights2) != ref_crs) warning("CRS mismatch between 'lights1' and 'lights2'") else message("CRS match between 'lights1' and 'lights2'")
+  if (crs(lights3) != ref_crs) warning("CRS mismatch between 'lights1' and 'lights3'") else print("CRS match between 'lights1' and 'lights3'")
+  if (crs(lights4) != ref_crs) warning("CRS mismatch between 'lights1' and 'lights4'") else print("CRS match between 'lights1' and 'lights4'")
+  if (crs(roads) != ref_crs) warning("CRS mismatch between 'lights1' and 'roads'") else print("CRS match between 'lights1' and 'roads'")
+  if (crs(houses) != ref_crs) warning("CRS mismatch between 'lights1' and 'houses'") else print("CRS match between 'lights1' and 'houses'")
+
+  # final summary
+  if (crs(lights2) == ref_crs &&
+      crs(lights3) == ref_crs &&
+      crs(lights4) == ref_crs &&
+      crs(roads) == ref_crs &&
+      crs(houses) == ref_crs) {
+    print("All CRS match!")
+  } else {
+    warning("One or more CRS mismatches detected")
+  }
+}
+
+
+
+check_crs(lights1, lights2, lights3, lights4, roads, houses)
+if (st_crs(lights1) == st_crs(lights2)){ 
+  print()
+  }
+
+
 
 ```
 
@@ -102,7 +129,6 @@ crop (spatially subset) the blackout mask to the Houston area as defined by the 
 (-96.5, 29), (-96.5, 30.5), (-94.5, 30.5), (-94.5, 29)
 re-project the cropped blackout dataset to EPSG:3083 (NAD83 / Texas Centric Albers Equal Area)
 
-
 ```{r}
 # - find the change in night lights intensity (presumably) caused by the storm
 # - hint: this will require creating a raster object for each day (2021-02-07 and 2021-02-16)
@@ -118,35 +144,95 @@ re-project the cropped blackout dataset to EPSG:3083 (NAD83 / Texas Centric Albe
 
 # VNP
 # combine obj of same day using st_mosaic
-lights_day1 <- st_mosaic(lights1, lights2)
+lights_day1 <- st_mosaic(lights1, lights2)  # Feb 7
+lights_day2 <- st_mosaic(lights3, lights4) # Feb 16
 
-lights_day2 <-  st_mosaic(lights3, lights4)
+# Compute difference (Feb 7 - Feb 16)
+diff_raster <- lights_day1 - lights_day2
 
+#diff_raster <- diff_raster %>% st_as_sf()
+class(diff_raster)
+st_crs(diff_raster)
+```
+
+
+```{r}
+# Reclassify such that: 1 = blackout (>200 drop), NA = no blackout
+# blackout_mask <- classify(diff_raster,
+#                           rcl = matrix(c(-Inf, 200, NA,
+#                                          200, Inf, 1),
+#                                        ncol = 3, byrow = TRUE))
+
+#blackout_mask <- st_as_stars(ifelse(diff_raster[[1]] > 200, 1, NA))
 
 ## Difference of true (more than 200) or false (less than 200)
 # ***feb 7 - feb 16.. HOWEVER, must have difference of more than 200; positive 200 for a drop... true (if more than 200)
 
-# # if areas are FALSE (if difference is greater than 200), then assign NAs (assign NA with indexing) --> get difference mask --> st_as_sf() ---> st_make_valid() --> now have vector_difference_mask****
-night_lights <- (lights_day1 - lights_day2) > 200 
-night_lights
-
-
+## if areas are FALSE (if difference is greater than 200), then assign NAs (assign NA with indexing) --> get difference mask --> st_as_sf() ---> st_make_valid() --> now have vector_difference_mask****
 # - assign NA to all locations that experienced a drop of less than 200 nW cm-2sr-1 change
 # - vectorize the blackout mask
+blackout_mask<- diff_raster
+blackout_mask[diff_raster < 200] <- NA
+
+plot(blackout_mask)
+
+# Vectorize
+blackout_mask <- st_as_sf(blackout_mask)
+st_is_valid(blackout_mask)
+blackout_mask <- st_make_valid(blackout_mask)
+
+class(blackout_mask)
+plot(blackout_mask)
+
 # - hint: use st_as_sf() to convert from a raster to a vector and fix any invalid geometries with st_make_valid()
 
+```
 
+```{r}
 # crop (spatially subset) the blackout mask to the Houston area as defined by the following coordinates:
 # (-96.5, 29), (-96.5, 30.5), (-94.5, 30.5), (-94.5, 29)
-## use st_bbox with these coordinatesOR st_points() with join... however, NOT layered spatial object with st_bbox(), so use st_as_sf() --> CRS 4326. Next, find where they intersect with difference mask... 
+
+## use st_bbox with these coordinates OR st_points() with join... however, NOT layered spatial object with st_bbox(), so use st_as_sf() --> CRS 4326. Next, find where they intersect with difference mask... 
+?st_bbox()
+# houston <- st_bbox(c(xmin = -96.5, xmax = -94.5, ymin = 29, ymax = 30.5), crs = 4326)
+# houston <- st_as_sfc(houston, crs = 4326)  # convert to POLYGON
+
+houston_bbox <- st_bbox(c(xmin = -96.5, xmax = -94.5,
+                          ymin = 29,    ymax = 30.5), 
+                        crs = 4326)
+
+st_crs(houston_bbox) ==
+st_crs(blackout_mask)
+houston <- st_as_sfc(houston_bbox)
+
+
+houston_blackout <- st_crop(blackout_mask, houston)
+plot(houston_blackout)
+
+tm_shape(houston_blackout) + tm_polygons() + tm_title("Blackout Map of Houston", position = tm_pos_out("center"))
+
+
+houston <- st_as_sfc(houston_bbox)  # convert bbox to POLYGON
+houston <- st_sf(geometry = houston) # make sf object
+#st_crs(blackout_mask) <- st_crs(diff_raster)
+st_crs(blackout_mask) <- st_crs(lights_day1)
+
+#st_crs(houston) <- st_crs(blackout_mask)
+class(lights_day1)
+class(blackout_mask)
+#st_crs(blackout_mask) <- st_crs(diff_raster)
+
+blackout_mask <- st_make_valid(blackout_mask)
+houston <- st_make_valid(houston)
+
+
+st_crs(houston) == st_crs(houston_blackout)  # match CRS
+
+
 ## st_intersects(st_as_sf(st_bbox), vector_difference_mask) --> st_transform
 
-
 # re-project the cropped blackout dataset to EPSG:3083 (NAD83 / Texas Centric Albers Equal Area)
-
-
-
-
+tm_shape(houston_blackout) + tm_polygons() + tm_title("Blackout Map of Houston", position = tm_pos_out("center"))
 
 
 
@@ -164,6 +250,7 @@ Highways may have experienced changes in their night light intensities that are 
 ```{r}
 ## st_intersection(): Certain feature that intersects BOTH
 ## st_union(): return either or... if in A or B 
+
 
 ## identify areas within 200m of all highways
 # need in all directions within 200 m... st_buffer() for around highways (uses units of layer... ALWAYS MAKE SURE ST_CRS()$UNITS) 
@@ -237,8 +324,12 @@ colSums(is.na(socioeconomic))
 
 ```
 
-
-
+## Output
+- Need two maps before and after the storm
+- Map of homes in Houston that lost power 
+- A map of census tractsin Houston that lost power
+- Plot comparing distributions of median household income for census tracks that did and did not experience blackouts
+- a brief reflection (~100 words) summarizing results and discussing any limitation to this study
 
 
 
