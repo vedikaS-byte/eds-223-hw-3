@@ -58,7 +58,9 @@ lights3 <- read_stars(here::here("data", "VNP46A1", "VNP46A1.A2021047.h08v05.001
 lights4 <- read_stars(here::here("data", "VNP46A1", "VNP46A1.A2021047.h08v06.001.2021048091105.tif"))
 
 # Roads
-roads <- read_sf(here::here("data", "gis_osm_roads_free_1.gpkg"))
+roads <- read_sf(here::here("data", "gis_osm_roads_free_1.gpkg"),query = "SELECT * FROM gis_osm_roads_free_1 WHERE fclass='motorway'")
+colnames(roads)
+unique(roads$fclass)
 
 # Houses
 houses <- read_sf(here::here("data", "gis_osm_buildings_a_free_1.gpkg"))
@@ -250,12 +252,40 @@ Highways may have experienced changes in their night light intensities that are 
 ```{r}
 ## st_intersection(): Certain feature that intersects BOTH
 ## st_union(): return either or... if in A or B 
+roads <- st_union(roads)
+## buffer then union
+# st_transform
+# NAD 83
+roads <- st_transform(roads, crs = st_crs(houston_blackout))
 
 
 ## identify areas within 200m of all highways
 # need in all directions within 200 m... st_buffer() for around highways (uses units of layer... ALWAYS MAKE SURE ST_CRS()$UNITS) 
 # Then, disolve acutal highway and buffer with st_union() to get polygon
+# crop roads to houston_blackout for easy of running buffer
+# roads_houston_crop <- 
+roads_buffer_200 <- st_buffer(roads, dist = 200)
+highways_200 <- st_union(roads_buffer_200)
 
+#highways_200_m <- st_union(roads_buffer_200)
+plot(highways_200)
+
+
+## now need to disolve 
+# We can use st_difference()
+?st_difference()
+# blackout_not_highway = areas of blackout that do NOT overlap highways
+blackout_not_highway <- st_filter(houston_blackout, highways_200, .predicate = st_disjoint)
+
+#plot(st_geometry(highways_200), col = 'red', add = TRUE)
+plot(st_geometry(blackout_not_highway), col = 'blue', add = TRUE)
+
+
+# st_difference(highways_200, blackout_mask) # Order, which one goes first?
+plot(blackout_not_highway)
+tm_shape(blackout_not_highway) + tm_polygons() + tm_title("Areas of Houston Blackout That Do NOT Overlap Higways", position = tm_pos_out("center"))
+
+# st_filter(,.predicate = st_disjoint)
 
 # - hint: you may need to use st_union (aggregates data)
 # - find areas that experienced blackouts that are further than 200m from a highway
@@ -273,6 +303,21 @@ identify homes that overlap with areas that experienced blackouts
 ## identify homes that overlap with areas that experienced blackouts
 # First, layer must be overlapped with areas with non-highway experience blackout (use final output from previous section with output of st_disjoint())
 # use any: st.intersection, st_within, st_contains... however, return a different amount of rows and cols... recall than st_intersection considers placement of houses on borders too
+buildings_affected_blackout <- st_filter(houses, blackout_not_highway, .predicate = st_intersects)
+
+tm_shape(buildings_affected_blackout) + tm_polygons() + tm_title("Houses in Houston Affected By the Blackout", position = tm_pos_out("center"))
+
+
+
+
+# Link building locations to acs census tracts... this is the socioeconomic data!
+# CRS do not match... maybe put warning
+st_crs(socioeconomic) == st_crs(buildings_affected_blackout)
+st_crs(socioeconomic) <- st_crs(buildings_affected_blackout)
+
+acs_affected <- st_filter(socioeconomic, buildings_affected_blackout, .predicate = st_intersects)
+
+tm_shape(acs_affected) + tm_polygons() + tm_title("Census Tracks in Houston Affected By the Blackout", position = tm_pos_out("center"))
 
 # Would get number of homes that experienced blackouts 
 # homes that experienced blackout (create map and this # if the summary statistic)
@@ -319,6 +364,7 @@ socioeconomic <- geometry_socio %>%
 str(socioeconomic)
 colSums(is.na(socioeconomic))
 
+
 # After st_join, do data wrangling to summarize median income by census tract
 
 
@@ -327,7 +373,7 @@ colSums(is.na(socioeconomic))
 ## Output
 - Need two maps before and after the storm
 - Map of homes in Houston that lost power 
-- A map of census tractsin Houston that lost power
+- A map of census tracts in Houston that lost power
 - Plot comparing distributions of median household income for census tracks that did and did not experience blackouts
 - a brief reflection (~100 words) summarizing results and discussing any limitation to this study
 
