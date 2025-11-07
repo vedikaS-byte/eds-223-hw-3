@@ -63,8 +63,9 @@ colnames(roads)
 unique(roads$fclass)
 
 # Houses
-houses <- read_sf(here::here("data", "gis_osm_buildings_a_free_1.gpkg"))
-houses
+buildings <- read_sf(here::here("data", "gis_osm_buildings_a_free_1.gpkg"))
+unique(buildings$type)
+#houses <- houses %>% filter(type == "residential")
 # st_read(fielpath, quaery = "pass for houses")
 # st_read(fielpath, quaery = "pass for roads")
 
@@ -205,6 +206,7 @@ houston_bbox <- st_bbox(c(xmin = -96.5, xmax = -94.5,
 
 st_crs(houston_bbox) ==
 st_crs(blackout_mask)
+
 houston <- st_as_sfc(houston_bbox)
 
 
@@ -234,8 +236,9 @@ st_crs(houston) == st_crs(houston_blackout)  # match CRS
 ## st_intersects(st_as_sf(st_bbox), vector_difference_mask) --> st_transform
 
 # re-project the cropped blackout dataset to EPSG:3083 (NAD83 / Texas Centric Albers Equal Area)
-tm_shape(houston_blackout) + tm_polygons() + tm_title("Blackout Map of Houston", position = tm_pos_out("center"))
-
+tm_shape(houston_blackout) + tm_polygons() + 
+  #tm_title("Blackout Map of Houston", position = tm_pos_out("center")) 
+   tm_layout(main.title = "Blackout Map of Houston") + tm_basemap(server= "OpenStreetMap")
 
 
 ```
@@ -280,10 +283,9 @@ blackout_not_highway <- st_filter(houston_blackout, highways_200, .predicate = s
 #plot(st_geometry(highways_200), col = 'red', add = TRUE)
 plot(st_geometry(blackout_not_highway), col = 'blue', add = TRUE)
 
-
-# st_difference(highways_200, blackout_mask) # Order, which one goes first?
 plot(blackout_not_highway)
-tm_shape(blackout_not_highway) + tm_polygons() + tm_title("Areas of Houston Blackout That Do NOT Overlap Higways", position = tm_pos_out("center"))
+
+tm_shape(blackout_not_highway) + tm_polygons() +  tm_layout(main.title = "Areas of Houston Blackout That Do NOT Overlap Higways") + tm_basemap(server= "OpenStreetMap") # + add roads (highway+200)
 
 # st_filter(,.predicate = st_disjoint)
 
@@ -303,21 +305,40 @@ identify homes that overlap with areas that experienced blackouts
 ## identify homes that overlap with areas that experienced blackouts
 # First, layer must be overlapped with areas with non-highway experience blackout (use final output from previous section with output of st_disjoint())
 # use any: st.intersection, st_within, st_contains... however, return a different amount of rows and cols... recall than st_intersection considers placement of houses on borders too
-buildings_affected_blackout <- st_filter(houses, blackout_not_highway, .predicate = st_intersects)
+buildings_affected_blackout <- st_filter(buildings, blackout_not_highway, .predicate = st_intersects)
 
-tm_shape(buildings_affected_blackout) + tm_polygons() + tm_title("Houses in Houston Affected By the Blackout", position = tm_pos_out("center"))
+tm_shape(buildings_affected_blackout) + tm_polygons(col = "blue")  + tm_layout(main.title = "Houses in Houston Affected By the Blackout") + tm_basemap(server= "OpenStreetMap") ## add just the buildings
 
 
 
 
 # Link building locations to acs census tracts... this is the socioeconomic data!
-# CRS do not match... maybe put warning
+# CRS do not match... maybe put warning?
 st_crs(socioeconomic) == st_crs(buildings_affected_blackout)
 st_crs(socioeconomic) <- st_crs(buildings_affected_blackout)
 
 acs_affected <- st_filter(socioeconomic, buildings_affected_blackout, .predicate = st_intersects)
 
-tm_shape(acs_affected) + tm_polygons() + tm_title("Census Tracks in Houston Affected By the Blackout", position = tm_pos_out("center"))
+str(acs_affected)
+
+
+# aummary stats
+#B19013e1
+
+tm_shape(acs_affected) + tm_polygons() + tm_layout(main.title = "Census Tracks in Houston Affected By the Blackout") + tm_basemap(server= "OpenStreetMap") ## add just the buildings
+
+
+
+
+colnames(acs_affected) 
+
+
+## WHICH CNESUS TRACTS DID NOT EXPERIENCE A BLACKOUT
+### need new columnn for "yes" or "no blackout" OR different data frame with no blackout census tracts
+
+## Use option A
+## If do column, then do group_by then median income summarize
+
 
 # Would get number of homes that experienced blackouts 
 # homes that experienced blackout (create map and this # if the summary statistic)
@@ -341,12 +362,13 @@ st_layers(here("data", "ACS_2019_5YR_TRACT_48_TEXAS.gdb"))
 # socioeconomic <- read_sf(here("data", "ACS_2019_5YR_TRACT_48_TEXAS.gdb"),
 #                     layer = "ACS_2019_5YR_TRACT_48_TEXAS")
 
-geometry_socio <- read_sf(here("data", "ACS_2019_5YR_TRACT_48_TEXAS.gdb"),
+geometry_socio <- st_read(here("data", "ACS_2019_5YR_TRACT_48_TEXAS.gdb"),
                     layer = "ACS_2019_5YR_TRACT_48_TEXAS")
-
+#view(geometry_socio)
+colnames(geometry_socio)
 
 ## Read in attribute data 
-attributes_socio <- read_sf(here("data", "ACS_2019_5YR_TRACT_48_TEXAS.gdb"),
+attributes_socio <- st_read(here("data", "ACS_2019_5YR_TRACT_48_TEXAS.gdb"),
                       layer = "X19_INCOME")
 
 
@@ -362,13 +384,18 @@ socioeconomic <- geometry_socio %>%
 # st_transform, then st_join
 #socioeconomic <- socioeconomic %>% st_transform()
 str(socioeconomic)
+
 colSums(is.na(socioeconomic))
+
+head(socioeconomic)
 
 
 # After st_join, do data wrangling to summarize median income by census tract
 
 
 ```
+
+## Summary stats
 
 ## Output
 - Need two maps before and after the storm
