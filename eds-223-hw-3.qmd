@@ -18,6 +18,9 @@ editor_options:
 ## Primary Objective
 ### Read in data and neccessary libraries
 
+
+Winter Storm Uri was a powerful and catastrophic winter storm that devastated several communities in Texas during February 13-17 2021. The state was not prepared for a significant loss of power 
+
 To complete complete the tasks of this assignment, you will need to break your analysis into the following key steps:
 
 - find locations that experienced a blackout by creating a mask
@@ -37,9 +40,7 @@ library(raster) # Load "raster" for accessing raster data types
 library(ggplot2) # Load "ggplot2" for data visualization
 library(tmap) # Load "tmap" for functions to create and layer maps
 library(kableExtra) # Load "kableExtra" for table formatting
-library(stars)
-library(terra)
-library(raster)
+library(stars) # Load "stars" for integration with "sf"
 ```
 
 
@@ -47,8 +48,6 @@ library(raster)
 
 ```{r}
 #| output: false 
-# Night lights... a raster
-
 lights1 <- read_stars(here::here("data", "VNP46A1", "VNP46A1.A2021038.h08v05.001.2021039064328.tif"))
 
 lights2 <- read_stars(here::here("data", "VNP46A1", "VNP46A1.A2021038.h08v06.001.2021039064329.tif"))
@@ -57,69 +56,57 @@ lights3 <- read_stars(here::here("data", "VNP46A1", "VNP46A1.A2021047.h08v05.001
 
 lights4 <- read_stars(here::here("data", "VNP46A1", "VNP46A1.A2021047.h08v06.001.2021048091105.tif"))
 
-# Roads
-roads <- read_sf(here::here("data", "gis_osm_roads_free_1.gpkg"),query = "SELECT * FROM gis_osm_roads_free_1 WHERE fclass='motorway'")
-colnames(roads)
-unique(roads$fclass)
-
-# Houses
-buildings <- read_sf(here::here("data", "gis_osm_buildings_a_free_1.gpkg"))
-unique(buildings$type)
-#houses <- houses %>% filter(type == "residential")
-# st_read(fielpath, quaery = "pass for houses")
-# st_read(fielpath, quaery = "pass for roads")
-
-
-# Socioeconomic
-# You can use st_layers() to explore the contents of the geodatabase. Each layer contains a subset of the fields documents in the ACS metadata.
-# 
-# The geodatabase contains a layer holding the geometry information (ACS_2019_5YR_TRACT_48_TEXAS), separate from the layers holding the ACS attributes. You have to combine the geometry with the attributes to get a feature layer that sf can use.
-
-
-# st_read(fielpath, layer = "says texas")
-
-
-
 ```
 
 
 ```{r}
-# Do the CRS match? Use 
-check_crs <- function(lights1, lights2, lights3, lights4, roads, houses) {
-  ref_crs <- crs(lights1)
-  
-  if (crs(lights2) != ref_crs) warning("CRS mismatch between 'lights1' and 'lights2'") else message("CRS match between 'lights1' and 'lights2'")
-  if (crs(lights3) != ref_crs) warning("CRS mismatch between 'lights1' and 'lights3'") else print("CRS match between 'lights1' and 'lights3'")
-  if (crs(lights4) != ref_crs) warning("CRS mismatch between 'lights1' and 'lights4'") else print("CRS match between 'lights1' and 'lights4'")
-  if (crs(roads) != ref_crs) warning("CRS mismatch between 'lights1' and 'roads'") else print("CRS match between 'lights1' and 'roads'")
-  if (crs(houses) != ref_crs) warning("CRS mismatch between 'lights1' and 'houses'") else print("CRS match between 'lights1' and 'houses'")
+# Do the CRS match? Use series of if statements with warnings
+# Create list of spatial objects
+spatial_objects <- list(
+  lights1 = lights1,
+  lights2 = lights2,
+  lights3 = lights3,
+  lights4 = lights4
+)
 
-  # final summary
-  if (crs(lights2) == ref_crs &&
-      crs(lights3) == ref_crs &&
-      crs(lights4) == ref_crs &&
-      crs(roads) == ref_crs &&
-      crs(houses) == ref_crs) {
-    print("All CRS match!")
-  } else {
-    warning("One or more CRS mismatches detected")
-  }
+# Create list of spatial objects
+spatial_objects <- list(
+  lights1 = lights1,
+  lights2 = lights2,
+  lights3 = lights3,
+  lights4 = lights4
+)
+
+# Use lights1's CRS as reference
+ref_crs <- st_crs(spatial_objects$lights1)
+
+# Check and transform each manually with if/else statements
+if (st_crs(spatial_objects$lights2) != ref_crs) {
+  warning("lights2 CRS does not match. Transform to match lights1 CRS")
+  spatial_objects$lights2 <- st_transform(spatial_objects$lights2, ref_crs)
+} else {
+  message("lights2 CRS already matches lights1 CRS.")
 }
 
+if (st_crs(spatial_objects$lights3) != ref_crs) {
+  warning("lights3 CRS does not match. Transform to match lights1 CRS")
+  spatial_objects$lights3 <- st_transform(spatial_objects$lights3, ref_crs)
+} else {
+  message("lights3 CRS already matches lights1 CRS.")
+}
 
-
-check_crs(lights1, lights2, lights3, lights4, roads, houses)
-if (st_crs(lights1) == st_crs(lights2)){ 
-  print()
-  }
-
-
+if (st_crs(spatial_objects$lights4) != ref_crs) {
+  warning("lights4 CRS does not match. Transform to match lights1 CRS")
+  spatial_objects$lights4 <- st_transform(spatial_objects$lights4, ref_crs)
+} else {
+  message("lights4 CRS already matches lights1 CRS.")
+}
 
 ```
 
 
 
-## Create a mask 
+## Create a mask --> SHOW WHERE AREAS HAD LIGHTS GO OUT
 To identify places that experienced a blackout, you should create a “mask” that indicates for each cell whether or not it experienced a blackout.
 
 - find the change in night lights intensity (presumably) caused by the storm
@@ -177,7 +164,7 @@ st_crs(diff_raster)
 blackout_mask<- diff_raster
 blackout_mask[diff_raster < 200] <- NA
 
-plot(blackout_mask)
+#plot(blackout_mask)
 
 # Vectorize
 blackout_mask <- st_as_sf(blackout_mask)
@@ -188,6 +175,7 @@ class(blackout_mask)
 plot(blackout_mask)
 
 # - hint: use st_as_sf() to convert from a raster to a vector and fix any invalid geometries with st_make_valid()
+st_is_valid(blackout_mask)
 
 ```
 
@@ -203,14 +191,15 @@ plot(blackout_mask)
 houston_bbox <- st_bbox(c(xmin = -96.5, xmax = -94.5,
                           ymin = 29,    ymax = 30.5), 
                         crs = 4326)
-
+# check crs (use function for this)
 st_crs(houston_bbox) ==
 st_crs(blackout_mask)
 
+# convert to sf polygon: boundaries of houston
 houston <- st_as_sfc(houston_bbox)
 
-
 houston_blackout <- st_crop(blackout_mask, houston)
+
 plot(houston_blackout)
 
 tm_shape(houston_blackout) + tm_polygons() + tm_title("Blackout Map of Houston", position = tm_pos_out("center"))
@@ -236,10 +225,27 @@ st_crs(houston) == st_crs(houston_blackout)  # match CRS
 ## st_intersects(st_as_sf(st_bbox), vector_difference_mask) --> st_transform
 
 # re-project the cropped blackout dataset to EPSG:3083 (NAD83 / Texas Centric Albers Equal Area)
+houston_blackout <- st_transform(houston_blackout, crs = "EPSG:3083")
+
 tm_shape(houston_blackout) + tm_polygons() + 
-  #tm_title("Blackout Map of Houston", position = tm_pos_out("center")) 
    tm_layout(main.title = "Blackout Map of Houston") + tm_basemap(server= "OpenStreetMap")
 
+
+
+```
+
+a set of maps comparing night light intensities before and after the first two storms
+```{r}
+## a set of maps comparing night light intensities before and after the first two storms
+tm1 <- tm_shape(lights_day1) + tm_raster(title="Feb 7 (Pre-storm)", style = "quantile",  palette = c("darkblue", "blue","lightblue")) 
+tm2 <- tm_shape(lights_day2) + tm_raster(title="Feb 16 (Post-storm)", style = "quantile",  palette = c("darkblue", "blue", "lightblue")) 
+
+#tm3 <- tm_shape(diff_raster) + tm_raster(palette="-RdYlBu", title="Change")
+tm4 <- tm_shape(houston_blackout) + tm_polygons() +
+   tm_layout(main.title = "Blackout Map of Houston") + tm_basemap(server= "OpenStreetMap")
+
+tmap_arrange(tm1,tm2, nrow = 1, ncol = 2)
+tm4
 
 ```
 
@@ -248,9 +254,20 @@ tm_shape(houston_blackout) + tm_polygons() +
 ## Exclude highways from the cropped blackout mask
 Highways may have experienced changes in their night light intensities that are unrelated to the storm. Therefore, you should excluded any locations within 200 meters of all highways in the Houston area.
 
+
 - identify areas within 200m of all highways
 - hint: you may need to use st_union
 - find areas that experienced blackouts that are further than 200m from a highway
+
+```{r}
+# Load in roads 
+# Roads
+roads <- read_sf(here::here("data", "gis_osm_roads_free_1.gpkg"), query = "SELECT * FROM gis_osm_roads_free_1 WHERE fclass='motorway'")
+colnames(roads)
+unique(roads$fclass)
+
+```
+
 
 ```{r}
 ## st_intersection(): Certain feature that intersects BOTH
@@ -281,7 +298,7 @@ plot(highways_200)
 blackout_not_highway <- st_filter(houston_blackout, highways_200, .predicate = st_disjoint)
 
 #plot(st_geometry(highways_200), col = 'red', add = TRUE)
-plot(st_geometry(blackout_not_highway), col = 'blue', add = TRUE)
+plot(st_geometry(blackout_not_highway), col = 'black', add = TRUE)
 
 plot(blackout_not_highway)
 
@@ -299,51 +316,42 @@ tm_shape(blackout_not_highway) + tm_polygons() +  tm_layout(main.title = "Areas 
 
 ## Identify the number of homes likely impacted by blackouts
 identify homes that overlap with areas that experienced blackouts
+```{r}
+# Load in homes 
+# Houses
+buildings <- read_sf(here::here("data", "gis_osm_buildings_a_free_1.gpkg"))
+
+```
+
+
 
 ```{r}
 ## buildings 
 ## identify homes that overlap with areas that experienced blackouts
 # First, layer must be overlapped with areas with non-highway experience blackout (use final output from previous section with output of st_disjoint())
 # use any: st.intersection, st_within, st_contains... however, return a different amount of rows and cols... recall than st_intersection considers placement of houses on borders too
+
+## CRS do not match
+st_crs(buildings) == st_crs(blackout_not_highway)
+
+# update buildings
+buildings = st_transform(buildings, crs = st_crs(blackout_not_highway))
+
+
+
 buildings_affected_blackout <- st_filter(buildings, blackout_not_highway, .predicate = st_intersects)
+
+buildings_affected_blackout_test <- st_intersection(buildings, blackout_not_highway)
 
 tm_shape(buildings_affected_blackout) + tm_polygons(col = "blue")  + tm_layout(main.title = "Houses in Houston Affected By the Blackout") + tm_basemap(server= "OpenStreetMap") ## add just the buildings
 
 
 
-
-# Link building locations to acs census tracts... this is the socioeconomic data!
-# CRS do not match... maybe put warning?
-st_crs(socioeconomic) == st_crs(buildings_affected_blackout)
-st_crs(socioeconomic) <- st_crs(buildings_affected_blackout)
-
-acs_affected <- st_filter(socioeconomic, buildings_affected_blackout, .predicate = st_intersects)
-
-str(acs_affected)
-
-
-# aummary stats
-#B19013e1
-
-tm_shape(acs_affected) + tm_polygons() + tm_layout(main.title = "Census Tracks in Houston Affected By the Blackout") + tm_basemap(server= "OpenStreetMap") ## add just the buildings
-
-
-
-
-colnames(acs_affected) 
-
-
-## WHICH CNESUS TRACTS DID NOT EXPERIENCE A BLACKOUT
-### need new columnn for "yes" or "no blackout" OR different data frame with no blackout census tracts
-
-## Use option A
-## If do column, then do group_by then median income summarize
-
-
-# Would get number of homes that experienced blackouts 
-# homes that experienced blackout (create map and this # if the summary statistic)
+tm_shape(buildings_affected_blackout_test) + tm_polygons(col = "blue")  + tm_layout(main.title = "Houses in Houston Affected By the Blackout") + tm_basemap(server= "OpenStreetMap") ## add just the buildings
 
 ```
+
+
 
 ## Socioeconomic 
 - Read in socioeconomic data
@@ -389,13 +397,115 @@ colSums(is.na(socioeconomic))
 
 head(socioeconomic)
 
-
+?st_disjoint
 # After st_join, do data wrangling to summarize median income by census tract
+
+```
+
+
+## Impacted Census Tracts
+
+
+```{r}
+# Link building locations to acs census tracts... this is the socioeconomic data!
+# CRS do not match... maybe put warning?
+st_crs(socioeconomic) == st_crs(buildings_affected_blackout)
+socioeconomic <- st_transform(socioeconomic, crs = st_crs(buildings_affected_blackout))
+
+acs_affected <- st_filter(socioeconomic, buildings_affected_blackout, .predicate = st_intersects)
+
+str(acs_affected)
+
+
+# Summary stats
+#B19013e1
+colnames(acs_affected)
+str(acs_affected$B19013e1)
+str(acs_affected %>% filter(!(is.na(B19013e1))))
+unique(acs_affected$B19013e1)
+
+## get rid of NAs (missing) as shown in legend
+acs_affected %>% filter(!(is.na(B19013e1))) %>%
+tm_shape(acs_affected) + tm_polygons(col = "B19013e1", 
+                                     palette = "inferno") + tm_layout(main.title = "Census Tracks in Houston Affected By the Blackout")  + tm_basemap(server= "OpenStreetMap") ## add just the buildings
+
+
+
+colnames(acs_affected) 
+
+
 
 
 ```
 
+
+
 ## Summary stats
+```{r}
+
+## WHICH CNESUS TRACTS DID NOT EXPERIENCE A BLACKOUT
+### need new columnn for "yes" or "no blackout" OR different data frame with no blackout census tracts
+
+## Use option A
+## If do column, then do group_by then median income summarize
+
+
+# Would get number of homes that experienced blackouts 
+# homes that experienced blackout (create map and this # if the summary statistic)
+## Label unaffected vs affected tracts 
+# indicator column 
+acs_affected$affected <- "Blackout"
+acs_unaffected <- socioeconomic[!(socioeconomic$GEOID %in% acs_affected$GEOID),]
+acs_unaffected$affected <- "No Blackout"
+
+# Combine status
+acs_compare <- rbind(acs_affected, acs_unaffected)
+nrow(acs_compare[acs_compare$affected == "Blackout"])
+
+## Then, ensure income exists
+summary(acs_compare$B19013e1)
+
+# Filter out nas
+acs_compare <- acs_compare %>% filter(!is.na(B19013e1))
+
+## Plot boxplot
+acs_compare %>% ggplot(aes(x = affected, y = B19013e1, fill = affected)) +
+  geom_boxplot(alpha = 0.7, width = 0.5, outlier.alpha = 0.3) +
+  scale_fill_manual(values = c("Blackout" = "lightblue", "No Blackout" = "red")) +
+  labs(
+    title =" Median Household Income by Blackout Status in Houston Census Tracts",
+    x = "Affected Status",
+    y = "Median Household Income (USD)"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+n_homes_blackout <- nrow(buildings_affected_blackout)
+print(n_homes_blackout)
+dim(buildings_affected_blackout) # Estimate of # of houses impacted
+
+
+```
+
+```{r}
+# kableextra table for summary stats
+income_summary <- acs_compare %>%
+  # Drop geometry for speed
+  st_drop_geometry() %>%
+  # Group by blackout
+  group_by(affected) %>%
+  # Grab median incomes- using metadata
+  summarize(
+    mean_income = mean(as.numeric(B19013e1), na.rm = TRUE),
+    median_income = median(as.numeric(B19013e1), na.rm = TRUE),
+    sd_income = sd(as.numeric(B19013e1), na.rm = TRUE),
+    n_tracts = n()
+  ) 
+  
+income_
+
+```
+
 
 ## Output
 - Need two maps before and after the storm
@@ -405,4 +515,7 @@ head(socioeconomic)
 - a brief reflection (~100 words) summarizing results and discussing any limitation to this study
 
 
-
+limitation: 
+- distance to hospital grid 
+- subsystem bias in GIS 
+-  
