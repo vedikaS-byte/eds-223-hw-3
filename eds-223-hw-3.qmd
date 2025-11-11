@@ -16,19 +16,41 @@ editor_options:
 ---
 
 ## Primary Objective
-### Read in data and neccessary libraries
 
+Winter Storm Uri was a powerful and catastrophic winter storm that
+devastated several communities in Texas during February 13-17 2021. The
+state was unprepared for a significant loss of power; power plants and
+grids were not prepared to handle freezing temperatures coupled with
+increased electricity usage to heat homes (Zhou et al., 2024). Nearly
+246 people perished, 4.5 million homes lost power, and costed the state
+about \$195 million in damages (Zhou et al., 2024). As such, Winter
+Storm Uri is listed as the costliest and one of the deadliest natural
+disasters in Texan history.
 
-Winter Storm Uri was a powerful and catastrophic winter storm that devastated several communities in Texas during February 13-17 2021. The state was not prepared for a significant loss of power 
+Harris County was heavily impacted by the storm. The City of Houston,
+the most populous city in Harris County, has a population of 2,333,346
+people as of 2024 (City of Houston, .
 
-To complete complete the tasks of this assignment, you will need to break your analysis into the following key steps:
+The purpose of this assignment is to assess the extent to which houses
+and census tracts in Houston lost power during Winter Storm Uri. The
+analysis utilizes spatial manipulation between raster and vector types
+to identify homes in Houston that experienced a blackout, as well as an
+assessment of median income for census tracts affected by the blackout
+based on socioeconomic data. The following research question was
+referenced to guide the analysis:
 
-- find locations that experienced a blackout by creating a mask
-- exclude highways from analysis
-- identify homes that experienced blackouts by combining the locations of homes and blackouts
-- identify the census tracts likely impacted by blackout
+**To what extent were homes and census tracts in Houston impacted by the
+power outage caused by Winter Storm Uri?**
 
+## Workflow
 
+-   find locations that experienced a blackout by creating a mask
+-   exclude highways from analysis
+-   identify homes that experienced blackouts by combining the locations
+    of homes and blackouts
+-   identify the census tracts likely impacted by blackout
+
+## Load in required packages
 
 ```{r}
 #| output: false
@@ -43,11 +65,11 @@ library(kableExtra) # Load "kableExtra" for table formatting
 library(stars) # Load "stars" for integration with "sf"
 ```
 
-
-# Load in data
+## Part 1: Create a Blackout Mask
 
 ```{r}
 #| output: false 
+# Read 
 lights1 <- read_stars(here::here("data", "VNP46A1", "VNP46A1.A2021038.h08v05.001.2021039064328.tif"))
 
 lights2 <- read_stars(here::here("data", "VNP46A1", "VNP46A1.A2021038.h08v06.001.2021039064329.tif"))
@@ -58,17 +80,8 @@ lights4 <- read_stars(here::here("data", "VNP46A1", "VNP46A1.A2021047.h08v06.001
 
 ```
 
-
 ```{r}
 # Do the CRS match? Use series of if statements with warnings
-# Create list of spatial objects
-spatial_objects <- list(
-  lights1 = lights1,
-  lights2 = lights2,
-  lights3 = lights3,
-  lights4 = lights4
-)
-
 # Create list of spatial objects
 spatial_objects <- list(
   lights1 = lights1,
@@ -104,20 +117,28 @@ if (st_crs(spatial_objects$lights4) != ref_crs) {
 
 ```
 
+## Create a mask --\> SHOW WHERE AREAS HAD LIGHTS GO OUT
 
+To identify places that experienced a blackout, you should create a
+“mask” that indicates for each cell whether or not it experienced a
+blackout.
 
-## Create a mask --> SHOW WHERE AREAS HAD LIGHTS GO OUT
-To identify places that experienced a blackout, you should create a “mask” that indicates for each cell whether or not it experienced a blackout.
-
-- find the change in night lights intensity (presumably) caused by the storm
-- hint: this will require creating a raster object for each day (2021-02-07 and 2021-02-16)
-- reclassify the difference raster, assuming that any location that experienced a drop of more than 200 nW cm-2sr-1 experienced a blackout
-- assign NA to all locations that experienced a drop of less than 200 nW cm-2sr-1 change
-- vectorize the blackout mask
-- hint: use st_as_sf() to convert from a raster to a vector and fix any invalid geometries with st_make_valid()
-crop (spatially subset) the blackout mask to the Houston area as defined by the following coordinates:
-(-96.5, 29), (-96.5, 30.5), (-94.5, 30.5), (-94.5, 29)
-re-project the cropped blackout dataset to EPSG:3083 (NAD83 / Texas Centric Albers Equal Area)
+-   find the change in night lights intensity (presumably) caused by the
+    storm
+-   hint: this will require creating a raster object for each day
+    (2021-02-07 and 2021-02-16)
+-   reclassify the difference raster, assuming that any location that
+    experienced a drop of more than 200 nW cm-2sr-1 experienced a
+    blackout
+-   assign NA to all locations that experienced a drop of less than 200
+    nW cm-2sr-1 change
+-   vectorize the blackout mask
+-   hint: use st_as_sf() to convert from a raster to a vector and fix
+    any invalid geometries with st_make_valid() crop (spatially subset)
+    the blackout mask to the Houston area as defined by the following
+    coordinates: (-96.5, 29), (-96.5, 30.5), (-94.5, 30.5), (-94.5, 29)
+    re-project the cropped blackout dataset to EPSG:3083 (NAD83 / Texas
+    Centric Albers Equal Area)
 
 ```{r}
 # - find the change in night lights intensity (presumably) caused by the storm
@@ -145,15 +166,9 @@ class(diff_raster)
 st_crs(diff_raster)
 ```
 
-
 ```{r}
 # Reclassify such that: 1 = blackout (>200 drop), NA = no blackout
-# blackout_mask <- classify(diff_raster,
-#                           rcl = matrix(c(-Inf, 200, NA,
-#                                          200, Inf, 1),
-#                                        ncol = 3, byrow = TRUE))
 
-#blackout_mask <- st_as_stars(ifelse(diff_raster[[1]] > 200, 1, NA))
 
 ## Difference of true (more than 200) or false (less than 200)
 # ***feb 7 - feb 16.. HOWEVER, must have difference of more than 200; positive 200 for a drop... true (if more than 200)
@@ -200,9 +215,6 @@ houston <- st_as_sfc(houston_bbox)
 
 houston_blackout <- st_crop(blackout_mask, houston)
 
-plot(houston_blackout)
-
-tm_shape(houston_blackout) + tm_polygons() + tm_title("Blackout Map of Houston", position = tm_pos_out("center"))
 
 
 houston <- st_as_sfc(houston_bbox)  # convert bbox to POLYGON
@@ -226,48 +238,79 @@ st_crs(houston) == st_crs(houston_blackout)  # match CRS
 
 # re-project the cropped blackout dataset to EPSG:3083 (NAD83 / Texas Centric Albers Equal Area)
 houston_blackout <- st_transform(houston_blackout, crs = "EPSG:3083")
-
-tm_shape(houston_blackout) + tm_polygons() + 
-   tm_layout(main.title = "Blackout Map of Houston") + tm_basemap(server= "OpenStreetMap")
-
-
-
 ```
 
-a set of maps comparing night light intensities before and after the first two storms
+a set of maps comparing night light intensities before and after the
+first two storms
+
 ```{r}
 ## a set of maps comparing night light intensities before and after the first two storms
-tm1 <- tm_shape(lights_day1) + tm_raster(title="Feb 7 (Pre-storm)", style = "quantile",  palette = c("darkblue", "blue","lightblue")) 
-tm2 <- tm_shape(lights_day2) + tm_raster(title="Feb 16 (Post-storm)", style = "quantile",  palette = c("darkblue", "blue", "lightblue")) 
+
+# change style of scale intervals OR set 65000 to NA
+
+# Add title, change units for legend
+
+# Use the palette function to get a specific number of colors
+
+
+
+tm1 <- tm_shape(lights_day2) + tm_raster(col.scale  = tm_scale_intervals(style = "quantile",  n = 10, values = c("black", "darkgrey", "darkorange", "yellow")), col.legend = tm_legend(expression(nW^-2~cm^-2~ sr^-1))) +
+  tm_graticules( # Add graticules to establish latitude and longitude network
+    col = "black",
+    lwd =.8) + # Establish "thickness" of lines
+    #alpha = 0.6 ) +  # Specify transparency 
+  tm_layout( # Center title outside bounding box
+    main.title = "Nighlights of Houston Prior to Winter Storm Uri (Feb 7)", 
+   # title.size = 1,
+    legend.outside = TRUE, # Place legend outside map frame
+    legend.outside.position = "right",
+    component.autoscale = FALSE # Disable autoscaling for title
+  )
+
+
+tm2 <- tm_shape(lights_day2) + tm_raster(col.scale  = tm_scale_intervals(style = "quantile",  n = 10, values = c("black", "darkgrey", "darkorange", "yellow")), col.legend = tm_legend(expression(nW^-2~cm^-2~ sr^-1))) +
+  tm_graticules( # Add graticules to establish latitude and longitude network
+    col = "black",
+    lwd =.8) + # Establish "thickness" of lines
+    #alpha = 0.6 ) +  # Specify transparency 
+  tm_layout( # Center title outside bounding box
+    main.title = "Nighlights of Houston After to Winter Storm Uri (Feb 16)", 
+    legend.outside = TRUE, # Place legend outside map frame
+    legend.outside.position = "right",
+    component.autoscale = FALSE # Disable autoscaling for title
+  )
+ 
 
 #tm3 <- tm_shape(diff_raster) + tm_raster(palette="-RdYlBu", title="Change")
-tm4 <- tm_shape(houston_blackout) + tm_polygons() +
-   tm_layout(main.title = "Blackout Map of Houston") + tm_basemap(server= "OpenStreetMap")
-
-tmap_arrange(tm1,tm2, nrow = 1, ncol = 2)
-tm4
+# tm4 <- tm_shape(houston_blackout) + tm_polygons() +
+#    tm_layout(main.title = "Blackout Map of Houston") + tm_basemap(server= "OpenStreetMap")
+tm1
+tm2
+tmap_save(tm1, "figs/pre_storm.png")
+tmap_save(tm2, "figs/post_storm.png")
 
 ```
 
-
+![](figs/pre_storm.png) ![](figs/post_storm.png)
 
 ## Exclude highways from the cropped blackout mask
-Highways may have experienced changes in their night light intensities that are unrelated to the storm. Therefore, you should excluded any locations within 200 meters of all highways in the Houston area.
 
+Highways may have experienced changes in their night light intensities
+that are unrelated to the storm. Therefore, you should excluded any
+locations within 200 meters of all highways in the Houston area.
 
-- identify areas within 200m of all highways
-- hint: you may need to use st_union
-- find areas that experienced blackouts that are further than 200m from a highway
+-   identify areas within 200m of all highways
+-   hint: you may need to use st_union
+-   find areas that experienced blackouts that are further than 200m
+    from a highway
 
 ```{r}
 # Load in roads 
 # Roads
 roads <- read_sf(here::here("data", "gis_osm_roads_free_1.gpkg"), query = "SELECT * FROM gis_osm_roads_free_1 WHERE fclass='motorway'")
 colnames(roads)
-unique(roads$fclass)
 
 ```
-
 
 ```{r}
 ## st_intersection(): Certain feature that intersects BOTH
@@ -312,18 +355,16 @@ tm_shape(blackout_not_highway) + tm_polygons() +  tm_layout(main.title = "Areas 
 
 ```
 
-
-
 ## Identify the number of homes likely impacted by blackouts
+
 identify homes that overlap with areas that experienced blackouts
+
 ```{r}
 # Load in homes 
 # Houses
 buildings <- read_sf(here::here("data", "gis_osm_buildings_a_free_1.gpkg"))
 
 ```
-
-
 
 ```{r}
 ## buildings 
@@ -341,21 +382,22 @@ buildings = st_transform(buildings, crs = st_crs(blackout_not_highway))
 
 buildings_affected_blackout <- st_filter(buildings, blackout_not_highway, .predicate = st_intersects)
 
-buildings_affected_blackout_test <- st_intersection(buildings, blackout_not_highway)
+#buildings_affected_blackout_test <- st_intersection(buildings, blackout_not_highway)
 
 tm_shape(buildings_affected_blackout) + tm_polygons(col = "blue")  + tm_layout(main.title = "Houses in Houston Affected By the Blackout") + tm_basemap(server= "OpenStreetMap") ## add just the buildings
 
+# table(buildings_affected$type)
+#table(buildings_affected_blackout$type) # residential 
 
 
-tm_shape(buildings_affected_blackout_test) + tm_polygons(col = "blue")  + tm_layout(main.title = "Houses in Houston Affected By the Blackout") + tm_basemap(server= "OpenStreetMap") ## add just the buildings
 
 ```
 
+## Socioeconomic
 
-
-## Socioeconomic 
-- Read in socioeconomic data
-- Interested in census track, median income, average income in these areas
+-   Read in socioeconomic data
+-   Interested in census track, median income, average income in these
+    areas
 
 ```{r}
 # Use a query 
@@ -363,7 +405,7 @@ tm_shape(buildings_affected_blackout_test) + tm_polygons(col = "blue")  + tm_lay
 # Because two layers are within two different sf objects but are similar, can left join attributes by Geo_ID
 # Why left_join() instead of the spatial? 
 
-
+buildings_affected_blackout[buildings_affected_blackout$type == "house"]
 st_layers(here("data", "ACS_2019_5YR_TRACT_48_TEXAS.gdb"))
 
 # Read in geom layer
@@ -397,14 +439,12 @@ colSums(is.na(socioeconomic))
 
 head(socioeconomic)
 
-?st_disjoint
+
 # After st_join, do data wrangling to summarize median income by census tract
 
 ```
 
-
 ## Impacted Census Tracts
-
 
 ```{r}
 # Link building locations to acs census tracts... this is the socioeconomic data!
@@ -425,9 +465,34 @@ str(acs_affected %>% filter(!(is.na(B19013e1))))
 unique(acs_affected$B19013e1)
 
 ## get rid of NAs (missing) as shown in legend
-acs_affected %>% filter(!(is.na(B19013e1))) %>%
-tm_shape(acs_affected) + tm_polygons(col = "B19013e1", 
-                                     palette = "inferno") + tm_layout(main.title = "Census Tracks in Houston Affected By the Blackout")  + tm_basemap(server= "OpenStreetMap") ## add just the buildings
+acs_income_non_na = acs_affected %>%
+  filter(!is.na(B19013e1))
+
+palette = colorRampPalette(c("#f7fcf5", "#74c476", "#00441b"))(10)
+
+  tm_shape(acs_income_non_na) +
+  tm_polygons(
+    col = "B19013e1",
+    palette = palette,  
+    style = "quantile",
+    n = 10,
+    title = "Median Income (USD)", 
+   legend.showNA = F
+  ) +
+  tm_layout(
+    main.title = "Census Tracts in Houston Affected by the Blackout Based on Median Income",
+    main.title.size = 1,
+    main.title.position = "center",
+    legend.outside = TRUE,
+    frame = T
+  ) + 
+   tm_graticules( # Add graticules to establish latitude and longitude network
+    col = "black",
+    lwd = 0.3, # Establish "thickness" of lines
+    alpha = 0.6 ) +
+  tm_basemap(server = "OpenStreetMap.HOT") 
+
+
 
 
 
@@ -438,9 +503,8 @@ colnames(acs_affected)
 
 ```
 
-
-
 ## Summary stats
+
 ```{r}
 
 ## WHICH CNESUS TRACTS DID NOT EXPERIENCE A BLACKOUT
@@ -484,6 +548,8 @@ n_homes_blackout <- nrow(buildings_affected_blackout)
 print(n_homes_blackout)
 dim(buildings_affected_blackout) # Estimate of # of houses impacted
 
+nrow(buildings_affected_blackout)
+
 
 ```
 
@@ -506,16 +572,14 @@ income_
 
 ```
 
-
 ## Output
-- Need two maps before and after the storm
-- Map of homes in Houston that lost power 
-- A map of census tracts in Houston that lost power
-- Plot comparing distributions of median household income for census tracks that did and did not experience blackouts
-- a brief reflection (~100 words) summarizing results and discussing any limitation to this study
 
+-   Need two maps before and after the storm
+-   Map of homes in Houston that lost power
+-   A map of census tracts in Houston that lost power
+-   Plot comparing distributions of median household income for census
+    tracks that did and did not experience blackouts
+-   a brief reflection (\~100 words) summarizing results and discussing
+    any limitation to this study
 
-limitation: 
-- distance to hospital grid 
-- subsystem bias in GIS 
--  
+limitation: - distance to hospital grid - subsystem bias in GIS -
