@@ -2,7 +2,7 @@
 
 ## Description
 
-Winter Storm Uri was a powerful and catastrophic winter storm that devastated several communities in Texas during February 13-17 2021. The state was unprepared for a significant loss of power; power plants and grids were not prepared to handle freezing temperatures coupled with increased electricity usage to heat homes (Zhou et al., 2024). Nearly 246 people perished, 4.5 million homes lost power, and costed the state about \$195 million in damages (Zhou et al., 2024). As such, Winter Storm Uri is listed as the costliest and one of the deadliest natural disasters in Texan history.
+Winter Storm Uri was a powerful and catastrophic winter storm that devastated several communities in Texas during February 13-17 2021. The state was unprepared for a significant loss of power; power plants and grids were not prepared to handle freezing temperatures coupled with increased electricity usage to heat homes (Zhou et al., 2024). Nearly 246 people perished, 4.5 million homes lost power, and costed the state about \$195 million in damages (Zhou et al., 2024). As such, Winter Storm Uri is listed as the costliest and one of the deadliest natural disasters in Texas history.
 
 Harris County was heavily impacted by the storm. The City of Houston, the most populous city in Harris County, has a population of 2,333,346 people as of 2024 (City of Houston, .
 

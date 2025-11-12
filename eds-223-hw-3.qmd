@@ -316,7 +316,7 @@ tmap_save(poststorm, "figs/post_storm.png")
 ![**Map 2. Finalized Version of Nightlights of Houston After Winter
 Storm Uri (Feb 16).**](figs/post_storm.png){fig-align="center"}
 
-## Part 2: Excluding highways from the blackout mask 
+## Part 2: Excluding highways from the blackout mask
 
 It is possible highways may have experienced changes in night light
 intensities that were not related to the storm. This part of the
@@ -359,7 +359,7 @@ if (st_crs(roads) != st_crs(houston_blackout)) {
 }
 ```
 
-13.  Create a 200 meter buffer around all highways using `st_buffer()`.
+13. Create a 200 meter buffer around all highways using `st_buffer()`.
     Then, apply `st_union()` to dissolve the individual highway buffers
     into a single continuous polygon.
 
@@ -375,66 +375,86 @@ roads_buffer_200 <- st_buffer(roads, dist = 200)
 highways_200 <- st_union(roads_buffer_200)
 ```
 
-14.  Use `st_filter()` to compare the blackout polygons
+14. Use `st_filter()` to compare the blackout polygons
     (`houston_blackout`) with the 200 meter highway buffer
     (`highways_200`). Set `.predicate = st_disjoint` to select only
     blackout areas that are (spatially) separate from the buffered
-    highways, as well as removing any overlapping regions. Then, create
-    a map of these areas outside the extent of highways.
+    highways, as well as removing any overlapping regions.
 
 ```{r}
 # Identify areas of blackout that do NOT overlap highways
 blackout_not_highway <- st_filter(houston_blackout, highways_200, 
                                   .predicate = st_disjoint)
-                                  
-
-tm_shape(blackout_not_highway) + tm_polygons() +  tm_layout(main.title = "Areas of Houston Blackout That Do NOT Overlap Higways") + tm_shape(highways_200) + tm_polygons() + tm_basemap(server= "OpenStreetMap") 
-
 ```
 
 ## Part 3: Identify the number of homes likely impacted by blackouts
 
-identify homes that overlap with areas that experienced blackouts
+In the section, homes that overlap with areas that experienced blackouts
+were identified by combining the locations of homes and areas that
+experienced a blackout (`houston_blackout`).
 
-Identify homes that experienced blackouts by combining the locations of
-homes and blackouts
+15. Read in the `buildings` geopackage and pass a query to only select
+    for residential areas, apartments, houses, carvans, and 'detached'
+    living.
 
 ```{r}
-# Load in homes 
-# Houses
-buildings <- read_sf(here::here("data", "gis_osm_buildings_a_free_1.gpkg"))
+# Load in buildings (homes)
+buildings <- read_sf(
+  here::here("data", "gis_osm_buildings_a_free_1.gpkg"),
+  query = "
+    SELECT * 
+    FROM gis_osm_buildings_a_free_1
+    WHERE (type IS NULL AND name IS NULL) OR type IN ('residential', 'apartments', 'house', 'static_caravan', 'detached')")
+```
 
+16. Selects all building features that intersect areas of blackout not
+    overlapping highways, using `st_filter()` with the `st_intersects`
+    predicate. Then, create a map showcasing the affected homes in
+    Houston.
+
+```{r}
+# Ensure CRS of buildings and blackout_not_highway match
+if (st_crs(buildings) != st_crs(blackout_not_highway)) {
+  warning("buildings CRS does not match. Transforming
+          to match blackout_not_highway CRS")
+  buildings <- st_transform(buildings, crs = st_crs(blackout_not_highway))
+} else {
+  message("buildings CRS already matches blackout_not_highway CRS.")
+}
+
+# Obtain intersecting (attribute) features of buildings 
+# and blackout_not_highway
+buildings_affected_blackout <- st_filter(buildings, blackout_not_highway, 
+                                         .predicate = st_intersects)
 ```
 
 ```{r}
-## buildings 
-## identify homes that overlap with areas that experienced blackouts
-# First, layer must be overlapped with areas with non-highway experience blackout (use final output from previous section with output of st_disjoint())
-# use any: st.intersection, st_within, st_contains... however, return a different amount of rows and cols... recall than st_intersection considers placement of houses on borders too
+#| warning: false
+#| message: false
+tm_shape(buildings_affected_blackout) +
+  tm_polygons(
+    col = "#3182bd", # Set color for buildings
+    lwd = 3,                     # thin borders
+    alpha = 0.7,                   # slight transparency
+    title = "Affected Buildings"   # legend title
+  ) +
+  tm_basemap(server = "OpenStreetMap") +
+  tm_layout(
+    main.title = "Residential Buildings in Houston Affected by the Blackout",
+    main.title.position = "center",
+    legend.title.size = 1.1,
+    legend.text.size = 0.9,
+    legend.outside = TRUE,
+    legend.outside.position = "right"
+  )
 
-## CRS do not match
-st_crs(buildings) == st_crs(blackout_not_highway)
-
-# update buildings
-buildings = st_transform(buildings, crs = st_crs(blackout_not_highway))
-
-
-
-buildings_affected_blackout <- st_filter(buildings, blackout_not_highway, .predicate = st_intersects)
-
-
-buildings_affected_blackout_test <- st_intersection(buildings, blackout_not_highway)
-
-tm_shape(buildings_affected_blackout) + tm_polygons(col = "blue")  + tm_layout(main.title = "Houses in Houston Affected By the Blackout") + tm_basemap(server= "OpenStreetMap") ## add just the buildings
 ```
 
-## Part 4: Identify impacted census tracts 
+## Part 4: Identify impacted census tracts
 
 -   Read in socioeconomic data
 -   Interested in census track, median income, average income in these
     areas
-
-<!-- -->
 
 -   identify the census tracts likely impacted by blackout
 
@@ -471,16 +491,6 @@ names(attributes_socio)
 socioeconomic <- geometry_socio %>%
   left_join(attributes_socio, by = c("GEOID_Data" = "GEOID"))
 
-# st_transform, then st_join
-#socioeconomic <- socioeconomic %>% st_transform()
-str(socioeconomic)
-
-colSums(is.na(socioeconomic))
-
-head(socioeconomic)
-
-
-# After st_join, do data wrangling to summarize median income by census tract
 
 ```
 
@@ -499,10 +509,10 @@ acs_affected <- st_filter(socioeconomic, buildings_affected_blackout, .predicate
 str(acs_affected)
 acs_affected_test <- st_intersection(socioeconomic, buildings_affected_blackout_test)
 
-st_crs(socioeconomic) == st_crs(buildings_affected_blackout_test)
+#st_crs(socioeconomic) == st_crs(buildings_affected_blackout_test)
 
 
-
+str(acs_affected)
 # Summary stats
 #B19013e1
 colnames(acs_affected)
@@ -539,33 +549,6 @@ acs_income_non_na = acs_affected %>%
 
 
 
-## get rid of NAs (missing) as shown in legend
-acs_income_non_na = acs_affected %>%
-  filter(!is.na(B19013e1))
-acs_affected_test$tracts <- "Census Tracts"
-
-  tm_shape(acs_affected_test) +
-  tm_polygons(
-    col = "tracts",
-  #  title = "Census Tracts"
-   # palette = palette,  
-   # style = "quantile",
-    #n = 10,
-    #title = "Median Income (USD)", 
-   #legend.showNA = F
-  ) +
-  tm_layout(
-    main.title = "Census Tracts in Houston Affected by the Blackout",
-    main.title.size = 2,
-    main.title.position = "center",
-    legend.outside = TRUE,
-    frame = T
-  ) + 
-   tm_graticules( # Add graticules to establish latitude and longitude network
-    col = "black",
-    lwd = 0.3, # Establish "thickness" of lines
-    alpha = 0.6 ) +
-  tm_basemap(server = "OpenStreetMap") 
 ```
 
 ##### summary stas
