@@ -1,4 +1,4 @@
-# eds-223-hw-3
+# Lights Out in Houston: Mapping the Effects of Winter Storm Uri
 
 ## Description
 
@@ -8,7 +8,7 @@ Harris County was heavily impacted by the storm. The City of Houston, the most p
 
 The purpose of this assignment is to assess the extent to which houses and census tracts in Houston lost power during Winter Storm Uri. The analysis utilizes spatial manipulation between raster and vector types to identify homes in Houston that experienced a blackout, as well as an assessment of median income for census tracts affected by the blackout based on socioeconomic data. The following research question was referenced to guide the analysis:
 
-To what extent were homes and census tracts in Houston impacted by the power outage caused by Winter Storm Uri?
+**To what extent were homes and census tracts in Houston impacted by the power outage caused by Winter Storm Uri?**
 
 
 ## Repository Structure 
