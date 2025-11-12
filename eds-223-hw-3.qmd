@@ -439,7 +439,7 @@ print(paste("About",
 ```{r}
 #| warning: false
 #| message: false
-# Create map for homes affected by the blackout
+# Create map for homes affected vs non affected by the blackout
 affected_homes_map <- tm_shape(buildings_affected_blackout) +
   
   tm_polygons() + # Set polygons for vector type
@@ -524,7 +524,8 @@ if (st_crs(socioeconomic) != st_crs(buildings_affected_blackout)) {
 #| message: false
 # Obtain intersecting features of socioeconomic 
 # and buildings_affected_blackout to identify affected census tracts
-acs_affected <- st_filter(socioeconomic, buildings_affected_blackout, 
+acs_affected <- st_filter(socioeconomic, 
+                          buildings_affected_blackout, 
                           .predicate = st_intersects)
 ```
 
@@ -539,19 +540,15 @@ income_palette <- c("#f7fcb9", # Low income
                     "#006837") # High income
 
 # Create map for affected census tracts
-tm_shape(acs_affected) +
+acs_affected_map <- tm_shape(acs_affected) +
   
 tm_polygons(
-  col = "B19013e1",
+  col = "B19013e1", # Median income column 
   title = "Median Income (USD)",
   palette = income_palette,  
-   # style = "quantile",
-    #n = 10,
-    #title = "Median Income (USD)", 
-   #legend.showNA = F
   ) +
   tm_layout(
-    main.title = "Blackout Impact by Income in Houston Census Tracts (Feb 2021)",
+    main.title = "Blackout Impact by Median Income of Houston Census Tracts (Feb 2021)",
     main.title.size = 2,
     main.title.position = "center",
     legend.outside = TRUE,
@@ -561,82 +558,102 @@ tm_polygons(
     lwd = 0.3, # Establish "thickness" of lines
     alpha = 0.6 ) +
   tm_basemap(server = "OpenStreetMap") 
+
+# Display census tract map
+acs_affected_map
+
+# Save finalized map to figs
+tmap_save(acs_affected_map, 
+          "figs/Affected_Census_Tracts.png")
 ```
 
-##### summary stas
+![**Map 4. Finalized Version of affected census tracts based on median
+income in
+Houston.**](figs/Affected_Census_Tracts.png){fig-align="center"}
+
+19. Create a new dataframe that labels each census tract as either
+    affected or unaffected by the blackout (`acs_compare`). Then,
+    generate a boxplot to compare the distribution of median income
+    between the two groups.
 
 ```{r}
+# Create a new column in acs_affected for affected census tracts
+acs_affected$affected <- "Blackout" # Assign "blackout" status
 
-## WHICH CNESUS TRACTS DID NOT EXPERIENCE A BLACKOUT
-### need new columnn for "yes" or "no blackout" OR different data frame with no blackout census tracts
+# Grab unaffected census tracts from original socioeconomic variable 
+acs_unaffected <- socioeconomic[
+  !(socioeconomic$GEOID %in% acs_affected$GEOID),] # Grab non-shared observations
 
-## Use option A
-## If do column, then do group_by then median income summarize
-
-
-# Would get number of homes that experienced blackouts 
-# homes that experienced blackout (create map and this # if the summary statistic)
-## Label unaffected vs affected tracts 
-# indicator column 
-
-# Summary stats
-#B19013e1
-colnames(acs_affected)
-str(acs_affected$B19013e1)
-str(acs_affected %>% filter(!(is.na(B19013e1))))
-unique(acs_affected$B19013e1)
-acs_affected$tracts <- "Census Tracts"
-
-
-
-acs_affected$affected <- "Blackout"
-acs_unaffected <- socioeconomic[!(socioeconomic$GEOID %in% acs_affected$GEOID),]
+# Assign "No Blackout" status to 
 acs_unaffected$affected <- "No Blackout"
 
 # Combine status
 acs_compare <- rbind(acs_affected, acs_unaffected)
-nrow(acs_compare[acs_compare$affected == "Blackout"])
 
-## Then, ensure income exists
-summary(acs_compare$B19013e1)
-
-
-# Filter out nas
+# Filter out missing values
 acs_compare <- acs_compare %>% filter(!is.na(B19013e1))
+```
 
+```{r}
 ## Plot boxplot
-acs_compare %>% ggplot(aes(x = affected, y = B19013e1, fill = affected)) +
-  geom_boxplot(alpha = 0.7, width = 0.5, outlier.alpha = 0.3) +
-  scale_fill_manual(values = c("Blackout" = "lightblue", "No Blackout" = "red")) +
+acs_compare_plot <- acs_compare %>% 
+  ggplot(aes(x = affected, # Blackout status
+             y = B19013e1, # Median income
+             fill = affected)) + # Fill by blackout status
+  geom_boxplot(alpha = 0.7) + # Adjust transparency) 
+  
+  # Assign colors manually to status
+  scale_fill_manual(values = 
+                      c("Blackout" = "lightblue", 
+                        "No Blackout" = "red")) +
   labs(
-    title =" Median Household Income by Blackout Status in Houston Census Tracts",
+    title = "Median Household Income by Blackout Status in Houston Census Tracts",
     x = "Affected Status",
     y = "Median Household Income (USD)"
   ) +
-  theme_minimal() +
+  theme_minimal() + # Set theme
   theme(legend.position = "none")
 
-n_homes_blackout <- nrow(buildings_affected_blackout)
-print(n_homes_blackout)
-dim(buildings_affected_blackout) # Estimate of # of houses impacted
+acs_compare_plot
 
-nrow(buildings_affected_blackout)
+# Save finalized figure to figs
+ggsave(
+  filename = "figs/Affected_Census_Tracts_Boxplot.png",
+  plot = acs_compare_plot,
+  width = 8,
+  height = 6)
+```
 
-##### summary table using kable extra for median, mean, sd of census tracts impacted vs not impacted
+![**Figure 1. Finalized Version of median income distribution in
+affected Houston census
+tracts.**](figs/Affected_Census_Tracts_Boxplot.png){fig-align="center"}
 
+```{r}
+#| warning: false
+#| message: false
+# Summarize median income and n per affected group
+income_summary <- acs_compare %>%
+  st_drop_geometry() %>% # Drop geometries
+  group_by(affected) %>%   
+  summarise(
+    median_income = median(B19013e1, na.rm = T),
+    num_tracts = n()
+  )
 
-
-
+income_summary %>%
+  kbl(
+    caption = "Summary of Median Income and Number of Census Tracts by Affected Status",
+    col.names = c("Affected Status", # Rename columns
+                  "Median of Median Census Tract Income (USD)", 
+                  "Number of Census Tracts")) %>%
+  kable_styling(
+    full_width = FALSE, # Keep width narrow
+    bootstrap_options = c("striped", "hover")
+  )
 
 ```
 
-## Output
-
--   Need two maps before and after the storm
--   Map of homes in Houston that lost power
--   A map of census tracts in Houston that lost power
--   Plot comparing distributions of median household income for census
-    tracks that did and did not experience blackouts
+-   
 -   a brief reflection (\~100 words) summarizing results and discussing
     any limitation to this study
 
