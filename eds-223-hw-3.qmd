@@ -1,13 +1,10 @@
 ---
-title: "Identifying the impacts of extreme weather"
+title: "Lights Out in Houston: Mapping the Effects of Winter Storm Uri"
 author: "Vedika Shirtekar" 
-date: "11/8/2025"
+date: "11/10/2025"
 format:
   pdf: 
     code-fold: false
-execute: 
-  warning: false
-  message: false
 editor: 
   markdown: 
     wrap: 72
@@ -15,7 +12,7 @@ editor_options:
   chunk_output_type: console
 ---
 
-## Primary Objective
+### Primary Objective
 
 Winter Storm Uri was a powerful and catastrophic winter storm that
 devastated several communities in Texas during February 13-17 2021. The
@@ -50,7 +47,9 @@ power outage caused by Winter Storm Uri?**
     of homes and blackouts
 -   identify the census tracts likely impacted by blackout
 
-## Load in required packages
+### Load in required packages
+
+1.  Load in the appropriate packages for the analysis.
 
 ```{r}
 #| output: false
@@ -67,18 +66,43 @@ library(stars) # Load "stars" for integration with "sf"
 
 ## Part 1: Create a Blackout Mask
 
+To determine the areas affected by blackouts, a mask was generated to
+classify each cell based on whether or not it experienced a blackout.
+
+2.  Read in each `lights` raster using `read_stars()`. Both pre- and
+    post- storm days have two tiles per date that must be loaded in and
+    combined.
+
 ```{r}
 #| output: false 
-# Read 
-lights1 <- read_stars(here::here("data", "VNP46A1", "VNP46A1.A2021038.h08v05.001.2021039064328.tif"))
+# Read in each raster file as a stars object
 
-lights2 <- read_stars(here::here("data", "VNP46A1", "VNP46A1.A2021038.h08v06.001.2021039064329.tif"))
+# Feb 7
+lights1 <- read_stars(here::here("data", 
+                                 "VNP46A1", 
+                                 "VNP46A1.A2021038.h08v05.001.2021039064328.tif"))
 
-lights3 <- read_stars(here::here("data", "VNP46A1", "VNP46A1.A2021047.h08v05.001.2021048091106.tif"))
+# Feb 7
+lights2 <- read_stars(here::here("data", 
+                                 "VNP46A1", 
+                                 "VNP46A1.A2021038.h08v06.001.2021039064329.tif"))
 
-lights4 <- read_stars(here::here("data", "VNP46A1", "VNP46A1.A2021047.h08v06.001.2021048091105.tif"))
+# Feb 16
+lights3 <- read_stars(here::here("data", 
+                                 "VNP46A1", 
+                                 "VNP46A1.A2021047.h08v05.001.2021048091106.tif"))
+
+# Feb 16
+lights4 <- read_stars(here::here("data", 
+                                 "VNP46A1", 
+                                 "VNP46A1.A2021047.h08v06.001.2021048091105.tif"))
 
 ```
+
+3.  Use conditional statements to verify that each `lights` tile has the
+    same CRS as `lights1`. If mismatches are found, issue explicit
+    warnings and transform the tile CRS to the reference CRS
+    (`lights1`).
 
 ```{r}
 # Do the CRS match? Use series of if statements with warnings
@@ -93,35 +117,38 @@ spatial_objects <- list(
 # Use lights1's CRS as reference
 ref_crs <- st_crs(spatial_objects$lights1)
 
-# Check and transform each manually with if/else statements
+```
+
+```{r}
+# Check and transform each tile with if/else statements
 if (st_crs(spatial_objects$lights2) != ref_crs) {
-  warning("lights2 CRS does not match. Transform to match lights1 CRS")
+  warning("lights2 CRS does not match. 
+          Transforming to match lights1 CRS.")
   spatial_objects$lights2 <- st_transform(spatial_objects$lights2, ref_crs)
 } else {
   message("lights2 CRS already matches lights1 CRS.")
 }
+```
 
+```{r}
 if (st_crs(spatial_objects$lights3) != ref_crs) {
-  warning("lights3 CRS does not match. Transform to match lights1 CRS")
+  warning("lights3 CRS does not match. 
+          Transforming to match lights1 CRS")
   spatial_objects$lights3 <- st_transform(spatial_objects$lights3, ref_crs)
 } else {
   message("lights3 CRS already matches lights1 CRS.")
 }
+```
 
+```{r}
 if (st_crs(spatial_objects$lights4) != ref_crs) {
-  warning("lights4 CRS does not match. Transform to match lights1 CRS")
+  warning("lights4 CRS does not match. Transforming
+          to match lights1 CRS")
   spatial_objects$lights4 <- st_transform(spatial_objects$lights4, ref_crs)
 } else {
   message("lights4 CRS already matches lights1 CRS.")
 }
-
 ```
-
-## Create a mask --\> SHOW WHERE AREAS HAD LIGHTS GO OUT
-
-To identify places that experienced a blackout, you should create a
-“mask” that indicates for each cell whether or not it experienced a
-blackout.
 
 -   find the change in night lights intensity (presumably) caused by the
     storm
@@ -140,6 +167,9 @@ blackout.
     re-project the cropped blackout dataset to EPSG:3083 (NAD83 / Texas
     Centric Albers Equal Area)
 
+4.  Combine each tile raster into a single night light raster using
+    `st_mosaic()` for each day.
+
 ```{r}
 # - find the change in night lights intensity (presumably) caused by the storm
 # - hint: this will require creating a raster object for each day (2021-02-07 and 2021-02-16)
@@ -151,13 +181,14 @@ blackout.
 # c() for same attributes, same spatial extend and resolution, and different bands. Use when trying to stack data of the same attributes along third dimension (date) while making sure spatial respondence is maintained
 # st_mosaic for same thing except different spatial extent and same bands... use when you have multiple separate raster datasets that have different spatial coverages and would like to combine them into one
 
-# - reclassify the difference raster, assuming that any location that experienced a drop of more than 200 nW cm-2sr-1 experienced a blackout
+
 
 # VNP
 # combine obj of same day using st_mosaic
 lights_day1 <- st_mosaic(lights1, lights2)  # Feb 7
 lights_day2 <- st_mosaic(lights3, lights4) # Feb 16
 
+# - reclassify the difference raster, assuming that any location that experienced a drop of more than 200 nW cm-2sr-1 experienced a blackout
 # Compute difference (Feb 7 - Feb 16)
 diff_raster <- lights_day1 - lights_day2
 
@@ -165,6 +196,12 @@ diff_raster <- lights_day1 - lights_day2
 class(diff_raster)
 st_crs(diff_raster)
 ```
+
+5.  
+
+# - find the change in night lights intensity (presumably) caused by the storm
+
+# - hint: this will require creating a raster object for each day (2021-02-07 and 2021-02-16)
 
 ```{r}
 # Reclassify such that: 1 = blackout (>200 drop), NA = no blackout
@@ -179,11 +216,9 @@ st_crs(diff_raster)
 blackout_mask<- diff_raster
 blackout_mask[diff_raster < 200] <- NA
 
-#plot(blackout_mask)
 
 # Vectorize
 blackout_mask <- st_as_sf(blackout_mask)
-st_is_valid(blackout_mask)
 blackout_mask <- st_make_valid(blackout_mask)
 
 class(blackout_mask)
@@ -281,9 +316,6 @@ tm2 <- tm_shape(lights_day2) + tm_raster(col.scale  = tm_scale_intervals(style =
   )
  
 
-#tm3 <- tm_shape(diff_raster) + tm_raster(palette="-RdYlBu", title="Change")
-# tm4 <- tm_shape(houston_blackout) + tm_polygons() +
-#    tm_layout(main.title = "Blackout Map of Houston") + tm_basemap(server= "OpenStreetMap")
 tm1
 tm2
 tmap_save(tm1, "figs/pre_storm.png")
@@ -382,15 +414,10 @@ buildings = st_transform(buildings, crs = st_crs(blackout_not_highway))
 
 buildings_affected_blackout <- st_filter(buildings, blackout_not_highway, .predicate = st_intersects)
 
-#buildings_affected_blackout_test <- st_intersection(buildings, blackout_not_highway)
+
+buildings_affected_blackout_test <- st_intersection(buildings, blackout_not_highway)
 
 tm_shape(buildings_affected_blackout) + tm_polygons(col = "blue")  + tm_layout(main.title = "Houses in Houston Affected By the Blackout") + tm_basemap(server= "OpenStreetMap") ## add just the buildings
-
-# table(buildings_affected$type)
-#table(buildings_affected_blackout$type) # residential 
-
-
-
 ```
 
 ## Socioeconomic
@@ -406,6 +433,7 @@ tm_shape(buildings_affected_blackout) + tm_polygons(col = "blue")  + tm_layout(m
 # Why left_join() instead of the spatial? 
 
 buildings_affected_blackout[buildings_affected_blackout$type == "house"]
+
 st_layers(here("data", "ACS_2019_5YR_TRACT_48_TEXAS.gdb"))
 
 # Read in geom layer
@@ -450,11 +478,17 @@ head(socioeconomic)
 # Link building locations to acs census tracts... this is the socioeconomic data!
 # CRS do not match... maybe put warning?
 st_crs(socioeconomic) == st_crs(buildings_affected_blackout)
+
 socioeconomic <- st_transform(socioeconomic, crs = st_crs(buildings_affected_blackout))
+
 
 acs_affected <- st_filter(socioeconomic, buildings_affected_blackout, .predicate = st_intersects)
 
 str(acs_affected)
+acs_affected_test <- st_intersection(socioeconomic, buildings_affected_blackout_test)
+
+st_crs(socioeconomic) == st_crs(buildings_affected_blackout_test)
+
 
 
 # Summary stats
@@ -463,25 +497,24 @@ colnames(acs_affected)
 str(acs_affected$B19013e1)
 str(acs_affected %>% filter(!(is.na(B19013e1))))
 unique(acs_affected$B19013e1)
-
+acs_affected$tracts <- "Census Tracts"
 ## get rid of NAs (missing) as shown in legend
 acs_income_non_na = acs_affected %>%
   filter(!is.na(B19013e1))
 
-palette = colorRampPalette(c("#f7fcf5", "#74c476", "#00441b"))(10)
-
-  tm_shape(acs_income_non_na) +
+  tm_shape(acs_affected) +
   tm_polygons(
-    col = "B19013e1",
-    palette = palette,  
-    style = "quantile",
-    n = 10,
-    title = "Median Income (USD)", 
-   legend.showNA = F
+    col = "affected",
+    title = "Census Tracts"
+   # palette = palette,  
+   # style = "quantile",
+    #n = 10,
+    #title = "Median Income (USD)", 
+   #legend.showNA = F
   ) +
   tm_layout(
-    main.title = "Census Tracts in Houston Affected by the Blackout Based on Median Income",
-    main.title.size = 1,
+    main.title = "Census Tracts in Houston Affected by the Blackout",
+    main.title.size = 2,
     main.title.position = "center",
     legend.outside = TRUE,
     frame = T
@@ -490,17 +523,37 @@ palette = colorRampPalette(c("#f7fcf5", "#74c476", "#00441b"))(10)
     col = "black",
     lwd = 0.3, # Establish "thickness" of lines
     alpha = 0.6 ) +
-  tm_basemap(server = "OpenStreetMap.HOT") 
+  tm_basemap(server = "OpenStreetMap") 
 
 
 
+## get rid of NAs (missing) as shown in legend
+acs_income_non_na = acs_affected %>%
+  filter(!is.na(B19013e1))
+acs_affected_test$tracts <- "Census Tracts"
 
-
-colnames(acs_affected) 
-
-
-
-
+  tm_shape(acs_affected_test) +
+  tm_polygons(
+    col = "tracts",
+  #  title = "Census Tracts"
+   # palette = palette,  
+   # style = "quantile",
+    #n = 10,
+    #title = "Median Income (USD)", 
+   #legend.showNA = F
+  ) +
+  tm_layout(
+    main.title = "Census Tracts in Houston Affected by the Blackout",
+    main.title.size = 2,
+    main.title.position = "center",
+    legend.outside = TRUE,
+    frame = T
+  ) + 
+   tm_graticules( # Add graticules to establish latitude and longitude network
+    col = "black",
+    lwd = 0.3, # Establish "thickness" of lines
+    alpha = 0.6 ) +
+  tm_basemap(server = "OpenStreetMap") 
 ```
 
 ## Summary stats
@@ -528,6 +581,7 @@ nrow(acs_compare[acs_compare$affected == "Blackout"])
 
 ## Then, ensure income exists
 summary(acs_compare$B19013e1)
+
 
 # Filter out nas
 acs_compare <- acs_compare %>% filter(!is.na(B19013e1))
