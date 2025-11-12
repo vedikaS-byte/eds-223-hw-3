@@ -421,134 +421,146 @@ if (st_crs(buildings) != st_crs(blackout_not_highway)) {
 } else {
   message("buildings CRS already matches blackout_not_highway CRS.")
 }
+```
 
+```{r}
 # Obtain intersecting (attribute) features of buildings 
 # and blackout_not_highway
 buildings_affected_blackout <- st_filter(buildings, blackout_not_highway, 
                                          .predicate = st_intersects)
+
+# Identify the number of impacted homes
+print(paste("About", 
+            # Count the number of rows and round to nearest whole number
+            round(nrow(buildings_affected_blackout), 0), 
+            "homes were impacted by the blackout."))
 ```
 
 ```{r}
 #| warning: false
 #| message: false
-tm_shape(buildings_affected_blackout) +
-  tm_polygons(
-    col = "#3182bd", # Set color for buildings
-    lwd = 3,                     # thin borders
-    alpha = 0.7,                   # slight transparency
-    title = "Affected Buildings"   # legend title
+# Create map for homes affected by the blackout
+affected_homes_map <- tm_shape(buildings_affected_blackout) +
+  
+  tm_polygons() + # Set polygons for vector type
+  
+  tm_basemap(server = "OpenStreetMap") + # Establish basemap 
+  
+   tm_scale_bar( # Add scale bar for scale
+    position = c("left", "bottom")) +
+ 
+   tm_compass( # Add compass for orientation
+    type = "8star",        
+    position = c("right", "top"),
   ) +
-  tm_basemap(server = "OpenStreetMap") +
+  
   tm_layout(
-    main.title = "Residential Buildings in Houston Affected by the Blackout",
-    main.title.position = "center",
-    legend.title.size = 1.1,
-    legend.text.size = 0.9,
-    legend.outside = TRUE,
-    legend.outside.position = "right"
-  )
+    main.title = "Homes in Houston Affected by the Blackout",
+    main.title.position = "center") # Center title
 
+# View map in cell block output
+affected_homes_map
+
+# Save finalized map to figs
+tmap_save(affected_homes_map, 
+          "figs/Homes_in_Houston_Affected_by_Blackout.png")
 ```
+
+![**Map 3. Finalized Version of homes in Houston impacted by the winter
+storm
+blackout.**](figs/Homes_in_Houston_Affected_by_Blackout.png){fig-align="center"}
 
 ## Part 4: Identify impacted census tracts
 
--   Read in socioeconomic data
--   Interested in census track, median income, average income in these
-    areas
+Here, socioeconomic data was obtained from the
+`ACS_2019_5YR_TRACT_48_TEXAS` geodatabase by joining geometric data for
+Texas with attribute data describing median income. Census tracts
+impacted by the blackout were mapped, and a comparison of the median
+income of census tracts impacted were visualized for further
+interpretation.
 
--   identify the census tracts likely impacted by blackout
+17. Read the geometry layer (`ACS_2019_5YR_TRACT_48_TEXAS`) and the
+    attribute layer (`X19_INCOME`) from the geodatabase using
+    `st_layer()` to identify available layers. Then, perform a left join
+    on the shared `GEOID` column (with different names in each layer) to
+    merge the spatial geometries with corresponding income data.
 
 ```{r}
-# Use a query 
-# Read in layers: Geom and income data set
-# Because two layers are within two different sf objects but are similar, can left join attributes by Geo_ID
-# Why left_join() instead of the spatial? 
+# Utilize st_layers() to examine the INCOME and TEXAS layers
+#st_layers(here("data", "ACS_2019_5YR_TRACT_48_TEXAS.gdb"))
 
-#buildings_affected_blackout[buildings_affected_blackout$type == "house"]
-
-st_layers(here("data", "ACS_2019_5YR_TRACT_48_TEXAS.gdb"))
-
-# Read in geom layer
-# socioeconomic <- read_sf(here("data", "ACS_2019_5YR_TRACT_48_TEXAS.gdb"),
-#                     layer = "ACS_2019_5YR_TRACT_48_TEXAS")
-
+# Read in geometric layer (Texas)
 geometry_socio <- st_read(here("data", "ACS_2019_5YR_TRACT_48_TEXAS.gdb"),
                     layer = "ACS_2019_5YR_TRACT_48_TEXAS")
-#view(geometry_socio)
-colnames(geometry_socio)
 
-## Read in attribute data 
+# Read in attribute data for income
 attributes_socio <- st_read(here("data", "ACS_2019_5YR_TRACT_48_TEXAS.gdb"),
                       layer = "X19_INCOME")
 
-
-
-# Join
-names(geometry_socio)
-names(attributes_socio)
-
-# Perform left join for combination
-socioeconomic <- geometry_socio %>%
-  left_join(attributes_socio, by = c("GEOID_Data" = "GEOID"))
-
-
+# Perform a left join for combining spatial and income data 
+socioeconomic <- geometry_socio %>% 
+  left_join(attributes_socio, 
+            by = c("GEOID_Data" = "GEOID")) # Match column names to join on GEOID_Data
 ```
 
-## 
+18. Link building locations to ACS census tracts by using `st_filter()`
+    with the `st_intersects` predicate to identify tracts containing
+    affected homes.
 
 ```{r}
-# Link building locations to acs census tracts... this is the socioeconomic data!
-# CRS do not match... maybe put warning?
-st_crs(socioeconomic) == st_crs(buildings_affected_blackout)
+# Ensure CRS of socioeconomic and buildings_affected_blackout match
+if (st_crs(socioeconomic) != st_crs(buildings_affected_blackout)) {
+  warning("socioeconomic CRS does not match. Transforming
+          to match buildings_affected_blackout CRS")
+  socioeconomic <- st_transform(socioeconomic, 
+                                crs = st_crs(buildings_affected_blackout))
+} else {
+  message("socioeconomic CRS already matches buildings_affected_blackout CRS.")
+}
+```
 
-socioeconomic <- st_transform(socioeconomic, crs = st_crs(buildings_affected_blackout))
+```{r}
+#| warning: false
+#| message: false
+# Obtain intersecting features of socioeconomic 
+# and buildings_affected_blackout to identify affected census tracts
+acs_affected <- st_filter(socioeconomic, buildings_affected_blackout, 
+                          .predicate = st_intersects)
+```
 
+19. Create a map showcasing the median income (`B19013e1`, as defined in
+    the metadata) in census tracts affected by the storm blackout.
 
-acs_affected <- st_filter(socioeconomic, buildings_affected_blackout, .predicate = st_intersects)
+```{r}
+# Create custom color palette 
+income_palette <- c("#f7fcb9", # Low income
+                    "#addd8e",
+                    "#31a354",
+                    "#006837") # High income
 
-str(acs_affected)
-acs_affected_test <- st_intersection(socioeconomic, buildings_affected_blackout_test)
-
-#st_crs(socioeconomic) == st_crs(buildings_affected_blackout_test)
-
-
-str(acs_affected)
-# Summary stats
-#B19013e1
-colnames(acs_affected)
-str(acs_affected$B19013e1)
-str(acs_affected %>% filter(!(is.na(B19013e1))))
-unique(acs_affected$B19013e1)
-acs_affected$tracts <- "Census Tracts"
-## get rid of NAs (missing) as shown in legend
-acs_income_non_na = acs_affected %>%
-  filter(!is.na(B19013e1))
-
-  tm_shape(acs_affected) +
-  tm_polygons(
-    col = "affected",
-    title = "Census Tracts"
-   # palette = palette,  
+# Create map for affected census tracts
+tm_shape(acs_affected) +
+  
+tm_polygons(
+  col = "B19013e1",
+  title = "Median Income (USD)",
+  palette = income_palette,  
    # style = "quantile",
     #n = 10,
     #title = "Median Income (USD)", 
    #legend.showNA = F
   ) +
   tm_layout(
-    main.title = "Census Tracts in Houston Affected by the Blackout",
+    main.title = "Blackout Impact by Income in Houston Census Tracts (Feb 2021)",
     main.title.size = 2,
     main.title.position = "center",
     legend.outside = TRUE,
-    frame = T
   ) + 
    tm_graticules( # Add graticules to establish latitude and longitude network
     col = "black",
     lwd = 0.3, # Establish "thickness" of lines
     alpha = 0.6 ) +
   tm_basemap(server = "OpenStreetMap") 
-
-
-
 ```
 
 ##### summary stas
@@ -566,6 +578,17 @@ acs_income_non_na = acs_affected %>%
 # homes that experienced blackout (create map and this # if the summary statistic)
 ## Label unaffected vs affected tracts 
 # indicator column 
+
+# Summary stats
+#B19013e1
+colnames(acs_affected)
+str(acs_affected$B19013e1)
+str(acs_affected %>% filter(!(is.na(B19013e1))))
+unique(acs_affected$B19013e1)
+acs_affected$tracts <- "Census Tracts"
+
+
+
 acs_affected$affected <- "Blackout"
 acs_unaffected <- socioeconomic[!(socioeconomic$GEOID %in% acs_affected$GEOID),]
 acs_unaffected$affected <- "No Blackout"
@@ -598,6 +621,11 @@ print(n_homes_blackout)
 dim(buildings_affected_blackout) # Estimate of # of houses impacted
 
 nrow(buildings_affected_blackout)
+
+##### summary table using kable extra for median, mean, sd of census tracts impacted vs not impacted
+
+
+
 
 
 ```
