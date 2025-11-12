@@ -39,14 +39,6 @@ referenced to guide the analysis:
 **To what extent were homes and census tracts in Houston impacted by the
 power outage caused by Winter Storm Uri?**
 
-## Workflow
-
--   find locations that experienced a blackout by creating a mask
--   exclude highways from analysis
--   identify homes that experienced blackouts by combining the locations
-    of homes and blackouts
--   identify the census tracts likely impacted by blackout
-
 ### Load in required packages
 
 1.  Load in the appropriate packages for the analysis.
@@ -152,14 +144,6 @@ if (st_crs(spatial_objects$lights4) != ref_crs) {
 }
 ```
 
--   vectorize the blackout mask
--   hint: use st_as_sf() to convert from a raster to a vector and fix
-    any invalid geometries with st_make_valid() crop (spatially subset)
-    the blackout mask to the Houston area as defined by the following
-    coordinates: (-96.5, 29), (-96.5, 30.5), (-94.5, 30.5), (-94.5, 29)
-    re-project the cropped blackout dataset to EPSG:3083 (NAD83 / Texas
-    Centric Albers Equal Area)
-
 4.  Combine each tile raster into a single night light raster using
     `st_mosaic()` for each day.
 
@@ -256,6 +240,8 @@ houston_blackout <- st_transform(houston_blackout, crs = "EPSG:3083")
     storm days to compare night light intensities.
 
 ```{r}
+#| warning: false
+#| message: false
 # Pre-storm lights
 prestorm <- tm_shape(lights_day1) + # Feb 7 tiles
   tm_raster(
@@ -276,7 +262,7 @@ prestorm <- tm_shape(lights_day1) + # Feb 7 tiles
     lwd =.8) + # Establish "thickness" of lines
 
   tm_layout( # Center title outside bounding box
-    main.title = "Nighlights of Houston Prior to Winter Storm Uri (Feb 7)", 
+    main.title = "Nighlights of Houston Prior to \nWinter Storm Uri (Feb 7)", 
     legend.outside = TRUE, # Place legend outside map frame
     legend.outside.position = "right", # Place legend to right
     component.autoscale = FALSE, # Disable autoscaling for title
@@ -289,11 +275,14 @@ prestorm
 tmap_save(prestorm, "figs/pre_storm.png")
 ```
 
-![Map 1. Finalized Version of Nightlights of Houston prior to Winter Storm Uri (Feb 7)](figs/pre_storm.png){fig-align="center" width="80%"}
+![**Map 1. Finalized Version of Nightlights of Houston prior to Winter
+Storm Uri (Feb 7).**](figs/pre_storm.png){fig-align="center"}
 
 ```{r}
+#| warning: false
+#| message: false
 # Post-storm lights
-prestorm <- tm_shape(lights_day1) + # Feb 16 tiles
+poststorm <- tm_shape(lights_day2) + # Feb 16 tiles
   tm_raster(
     col.scale  = tm_scale_intervals(
       style = "quantile", # Bin intensity range 
@@ -312,83 +301,103 @@ prestorm <- tm_shape(lights_day1) + # Feb 16 tiles
     lwd =.8) + # Establish "thickness" of lines
 
   tm_layout( # Center title outside bounding box
-    main.title = "Nighlights of Houston After Winter Storm Uri (Feb 16)", 
+    main.title = "Nighlights of Houston \nAfter Winter Storm Uri (Feb 16)", 
     legend.outside = TRUE, # Place legend outside map frame
     legend.outside.position = "right", # Place legend to right
     component.autoscale = FALSE, # Disable autoscaling for title
   )
 
-prestorm
+poststorm
 
 # Save finalized map to figs
-tmap_save(tm1, "figs/pre_storm.png")
+tmap_save(poststorm, "figs/post_storm.png")
 ```
 
-## Exclude highways from the cropped blackout mask
+![**Map 2. Finalized Version of Nightlights of Houston After Winter
+Storm Uri (Feb 16).**](figs/post_storm.png){fig-align="center"}
 
-Highways may have experienced changes in their night light intensities
-that are unrelated to the storm. Therefore, you should excluded any
-locations within 200 meters of all highways in the Houston area.
+## Part 2: Excluding highways from the blackout mask 
+
+It is possible highways may have experienced changes in night light
+intensities that were not related to the storm. This part of the
+analysis focuses on excluding locations within 200 meters of all
+highways in Houston.
 
 -   identify areas within 200m of all highways
 -   hint: you may need to use st_union
 -   find areas that experienced blackouts that are further than 200m
-    from a highway
+    from a highway.
+
+10. Load in the highways (`roads`) geopackage and use a query to filter
+    for motorways (highways) among other road types.
 
 ```{r}
-# Load in roads 
-# Roads
-roads <- read_sf(here::here("data", "gis_osm_roads_free_1.gpkg"), query = "SELECT * FROM gis_osm_roads_free_1 WHERE fclass='motorway'")
-colnames(roads)
-
+# Read in only highways data using a search query
+roads <- read_sf(here::here("data", "gis_osm_roads_free_1.gpkg"), 
+                 query = "SELECT * FROM 
+                 gis_osm_roads_free_1 WHERE fclass='motorway'")
 ```
 
+11. Use `st_union()` on `roads` to dissolve boundaries between adjacent
+    highways in Houston.
+
 ```{r}
-## st_intersection(): Certain feature that intersects BOTH
-## st_union(): return either or... if in A or B 
+# Update roads to include dissolved highways
 roads <- st_union(roads)
-## buffer then union
-# st_transform
-# NAD 83
-roads <- st_transform(roads, crs = st_crs(houston_blackout))
+```
 
+12. Ensure the CRS of `roads` and `houston_blackout` match.
 
-## identify areas within 200m of all highways
-# need in all directions within 200 m... st_buffer() for around highways (uses units of layer... ALWAYS MAKE SURE ST_CRS()$UNITS) 
-# Then, disolve acutal highway and buffer with st_union() to get polygon
-# crop roads to houston_blackout for easy of running buffer
-# roads_houston_crop <- 
+```{r}
+# Double check CRS match between roads and houston_blackout
+if (st_crs(roads) != st_crs(houston_blackout)) {
+  warning("roads CRS does not match. Transforming
+          to match houston_blackout CRS")
+  roads <- st_transform(roads, crs = st_crs(houston_blackout))
+} else {
+  message("roads CRS already matches houston_blackout CRS.")
+}
+```
+
+13.  Create a 200 meter buffer around all highways using `st_buffer()`.
+    Then, apply `st_union()` to dissolve the individual highway buffers
+    into a single continuous polygon.
+
+```{r}
+# Ensure units for roads are in meters
+print(paste("Units of `roads`:", st_crs(roads)$units))
+      
+# Create a 200 meter buffer around highways
 roads_buffer_200 <- st_buffer(roads, dist = 200)
+
+# Dissolve individual buffers to form continuous polygon 
+# for areas within 200 meters of highways
 highways_200 <- st_union(roads_buffer_200)
+```
 
-#highways_200_m <- st_union(roads_buffer_200)
-plot(highways_200)
+14.  Use `st_filter()` to compare the blackout polygons
+    (`houston_blackout`) with the 200 meter highway buffer
+    (`highways_200`). Set `.predicate = st_disjoint` to select only
+    blackout areas that are (spatially) separate from the buffered
+    highways, as well as removing any overlapping regions. Then, create
+    a map of these areas outside the extent of highways.
 
+```{r}
+# Identify areas of blackout that do NOT overlap highways
+blackout_not_highway <- st_filter(houston_blackout, highways_200, 
+                                  .predicate = st_disjoint)
+                                  
 
-## now need to disolve 
-# We can use st_difference()
-?st_difference()
-# blackout_not_highway = areas of blackout that do NOT overlap highways
-blackout_not_highway <- st_filter(houston_blackout, highways_200, .predicate = st_disjoint)
-
-#plot(st_geometry(highways_200), col = 'red', add = TRUE)
-plot(st_geometry(blackout_not_highway), col = 'black', add = TRUE)
-
-plot(blackout_not_highway)
-
-tm_shape(blackout_not_highway) + tm_polygons() +  tm_layout(main.title = "Areas of Houston Blackout That Do NOT Overlap Higways") + tm_basemap(server= "OpenStreetMap") # + add roads (highway+200)
-
-# st_filter(,.predicate = st_disjoint)
-
-# - hint: you may need to use st_union (aggregates data)
-# - find areas that experienced blackouts that are further than 200m from a highway
-# Now need to find areas further away than 200m from the polygon highways... st_diff/st_disjoint(st_buffer, st_union)
+tm_shape(blackout_not_highway) + tm_polygons() +  tm_layout(main.title = "Areas of Houston Blackout That Do NOT Overlap Higways") + tm_shape(highways_200) + tm_polygons() + tm_basemap(server= "OpenStreetMap") 
 
 ```
 
-## Identify the number of homes likely impacted by blackouts
+## Part 3: Identify the number of homes likely impacted by blackouts
 
 identify homes that overlap with areas that experienced blackouts
+
+Identify homes that experienced blackouts by combining the locations of
+homes and blackouts
 
 ```{r}
 # Load in homes 
@@ -419,11 +428,15 @@ buildings_affected_blackout_test <- st_intersection(buildings, blackout_not_high
 tm_shape(buildings_affected_blackout) + tm_polygons(col = "blue")  + tm_layout(main.title = "Houses in Houston Affected By the Blackout") + tm_basemap(server= "OpenStreetMap") ## add just the buildings
 ```
 
-## Socioeconomic
+## Part 4: Identify impacted census tracts 
 
 -   Read in socioeconomic data
 -   Interested in census track, median income, average income in these
     areas
+
+<!-- -->
+
+-   identify the census tracts likely impacted by blackout
 
 ```{r}
 # Use a query 
@@ -431,7 +444,7 @@ tm_shape(buildings_affected_blackout) + tm_polygons(col = "blue")  + tm_layout(m
 # Because two layers are within two different sf objects but are similar, can left join attributes by Geo_ID
 # Why left_join() instead of the spatial? 
 
-buildings_affected_blackout[buildings_affected_blackout$type == "house"]
+#buildings_affected_blackout[buildings_affected_blackout$type == "house"]
 
 st_layers(here("data", "ACS_2019_5YR_TRACT_48_TEXAS.gdb"))
 
@@ -471,7 +484,7 @@ head(socioeconomic)
 
 ```
 
-## Impacted Census Tracts
+## 
 
 ```{r}
 # Link building locations to acs census tracts... this is the socioeconomic data!
@@ -555,7 +568,7 @@ acs_affected_test$tracts <- "Census Tracts"
   tm_basemap(server = "OpenStreetMap") 
 ```
 
-## Summary stats
+##### summary stas
 
 ```{r}
 
@@ -603,25 +616,6 @@ dim(buildings_affected_blackout) # Estimate of # of houses impacted
 
 nrow(buildings_affected_blackout)
 
-
-```
-
-```{r}
-# kableextra table for summary stats
-income_summary <- acs_compare %>%
-  # Drop geometry for speed
-  st_drop_geometry() %>%
-  # Group by blackout
-  group_by(affected) %>%
-  # Grab median incomes- using metadata
-  summarize(
-    mean_income = mean(as.numeric(B19013e1), na.rm = TRUE),
-    median_income = median(as.numeric(B19013e1), na.rm = TRUE),
-    sd_income = sd(as.numeric(B19013e1), na.rm = TRUE),
-    n_tracts = n()
-  ) 
-  
-income_
 
 ```
 
