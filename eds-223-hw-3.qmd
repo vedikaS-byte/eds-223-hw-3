@@ -167,7 +167,6 @@ if (st_crs(spatial_objects$lights4) != ref_crs) {
 # Combine tiles of same day using st_mosaic()
 lights_day1 <- st_mosaic(lights1, lights2)  # Feb 7
 lights_day2 <- st_mosaic(lights3, lights4) # Feb 16
-
 ```
 
 5.  Calculate the change in night light intensity, presumed to result
@@ -254,48 +253,76 @@ houston_blackout <- st_transform(houston_blackout, crs = "EPSG:3083")
 ```
 
 9.  Create two maps using the combine raster tiles of the pre- and post-
-    storm days to compare a set of maps comparing night light
-    intensities before and after the first two storms
+    storm days to compare night light intensities.
 
 ```{r}
 # Pre-storm lights
-prestorm <- tm_shape(lights_day2) + tm_raster(col.scale  = tm_scale_intervals(style = "quantile",  n = 10, values = c("black", "darkgrey", "darkorange", "yellow")), col.legend = tm_legend(expression(nW^-2~cm^-2~ sr^-1))) +
+prestorm <- tm_shape(lights_day1) + # Feb 7 tiles
+  tm_raster(
+    col.scale  = tm_scale_intervals(
+      style = "quantile", # Bin intensity range 
+      n = 8, # For binning with four colors
+      values = c("black", # Black to orange custom color palette
+                 "#2c3e50", 
+                 "#f39c12", 
+                 "#f1c40f")), 
+      col.legend = tm_legend( # Use expression() for superscript formatting
+        expression(
+          "Night Light Insentity"~ 
+          "(nW"~cm^-2~ sr^-1~")"))) +
+  
   tm_graticules( # Add graticules to establish latitude and longitude network
     col = "black",
     lwd =.8) + # Establish "thickness" of lines
-    #alpha = 0.6 ) +  # Specify transparency 
+
   tm_layout( # Center title outside bounding box
     main.title = "Nighlights of Houston Prior to Winter Storm Uri (Feb 7)", 
-   # title.size = 1,
     legend.outside = TRUE, # Place legend outside map frame
-    legend.outside.position = "right",
-    component.autoscale = FALSE # Disable autoscaling for title
+    legend.outside.position = "right", # Place legend to right
+    component.autoscale = FALSE, # Disable autoscaling for title
   )
 
+# View in cell block output
+prestorm
+
+# Save finalized map to figs
+tmap_save(prestorm, "figs/pre_storm.png")
+```
+
+![Map 1. Finalized Version of Nightlights of Houston prior to Winter Storm Uri (Feb 7)](figs/pre_storm.png){fig-align="center" width="80%"}
+
+```{r}
 # Post-storm lights
-tm2 <- tm_shape(lights_day2) + tm_raster(col.scale  = tm_scale_intervals(style = "quantile",  n = 10, values = c("black", "darkgrey", "darkorange", "yellow")), col.legend = tm_legend(expression(nW^-2~cm^-2~ sr^-1))) +
+prestorm <- tm_shape(lights_day1) + # Feb 16 tiles
+  tm_raster(
+    col.scale  = tm_scale_intervals(
+      style = "quantile", # Bin intensity range 
+      n = 8, # For binning with four colors
+      values = c("black", # Black to orange custom color palette
+                 "#2c3e50", 
+                 "#f39c12", 
+                 "#f1c40f")), 
+      col.legend = tm_legend( # Use expression() for superscript formatting
+        expression(
+          "Night Light Insentity"~ 
+          "(nW"~cm^-2~ sr^-1~")"))) +
+  
   tm_graticules( # Add graticules to establish latitude and longitude network
     col = "black",
     lwd =.8) + # Establish "thickness" of lines
-    #alpha = 0.6 ) +  # Specify transparency 
+
   tm_layout( # Center title outside bounding box
-    main.title = "Nighlights of Houston After to Winter Storm Uri (Feb 16)", 
+    main.title = "Nighlights of Houston After Winter Storm Uri (Feb 16)", 
     legend.outside = TRUE, # Place legend outside map frame
-    legend.outside.position = "right",
-    component.autoscale = FALSE # Disable autoscaling for title
+    legend.outside.position = "right", # Place legend to right
+    component.autoscale = FALSE, # Disable autoscaling for title
   )
- 
 
-tm1
-tm2
+prestorm
+
+# Save finalized map to figs
 tmap_save(tm1, "figs/pre_storm.png")
-tmap_save(tm2, "figs/post_storm.png")
-
-
-
 ```
-
-![](figs/pre_storm.png) ![](figs/post_storm.png)
 
 ## Exclude highways from the cropped blackout mask
 
