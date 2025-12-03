@@ -437,7 +437,8 @@ if (st_crs(buildings) != st_crs(blackout_not_highway)) {
 # Obtain intersecting (attribute) features of buildings 
 # and blackout_not_highway
 buildings_affected_blackout <- st_filter(buildings, blackout_not_highway, 
-                                         .predicate = st_intersects)
+                                         .predicate = st_intersects) %>% st_centroid() # Convert polygons to center points
+
 
 # Identify the number of impacted homes
 print(paste("About", 
@@ -447,12 +448,64 @@ print(paste("About",
 ```
 
 ```{r}
+# Create an affected/unaffected column in a copy of buildings
+buildings_unaffected_blackout <- buildings %>%
+  filter(!osm_id %in% buildings_affected_blackout$osm_id) %>%
+  st_centroid()
+
+```
+
+```{r}
+#| warning: false
+#| message: false
+affected_homes_map <- tm_basemap("OpenStreetMap") +
+
+  # UNAFFECTED homes (faded)
+  tm_shape(buildings_unaffected_blackout) +
+  tm_dots(
+    col = "#8968CD",           # Gray
+    size = 0.02,              # Smaller dots
+    alpha = 0.2,              # MORE transparent
+    title = "Home Status",
+    labels = "Not Affected"
+  ) +
+
+  # AFFECTED homes (strong emphasis)
+  tm_shape(buildings_affected_blackout) +
+  tm_dots(
+    col = "darkred",              # Bright red
+    size = 0.05,              # Larger dots
+    alpha = 0.9,              # Nearly solid
+    title = "Home Status",
+    labels = "Affected"
+  ) +
+
+  tm_scale_bar(position = c("left", "bottom")) +
+  tm_compass(type = "8star", position = c("right", "top")) +
+
+  tm_layout(
+    main.title = "Homes in Houston Affected by the Blackout",
+    main.title.position = "center",
+    legend.outside = TRUE
+  ) + 
+  tm_add_legend(type = "symbol",
+              col = c("#8968CD", "darkred"),
+              labels = c("Not Affected", "Affected"),
+              title = "Home Status")
+
+
+```
+
+
+```{r}
 #| warning: false
 #| message: false
 # Create map for homes affected vs non affected by the blackout
-affected_homes_map <- tm_shape(buildings_affected_blackout) +
-  
-  tm_polygons() + # Set polygons for vector type
+affected_homes_map <- tm_shape(buildings_status) +
+   tm_polygons(alpha = "Status",
+            alpha.palette = c("Affected" = 1, "Not Affected" = 0.2),
+            col = "Status",
+            palette = c("Affected" = "red", "Not Affected" = "grey80")) + 
   
   tm_basemap(server = "OpenStreetMap") + # Establish basemap 
   
