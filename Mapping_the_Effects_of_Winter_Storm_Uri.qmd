@@ -12,6 +12,16 @@ editor_options:
   chunk_output_type: console
 ---
 
+# Lights Out in Houston: Mapping the Effects of Winter Storm Uri
+
+![](images/clipboard-2841720978.png)
+
+![](images/clipboard-540590989.png)
+
+![](images/clipboard-2271677895.png)
+
+![](images/clipboard-1234688113.png)
+
 ### Primary Objective
 
 Winter Storm Uri was a powerful and catastrophic winter storm that
@@ -20,13 +30,16 @@ state was unprepared for a significant loss of power; power plants and
 grids were not prepared to handle freezing temperatures coupled with
 increased electricity usage to heat homes (Zhou et al., 2024). Nearly
 246 people perished, 4.5 million homes lost power, and costed the state
-about $195 million in damages (Zhou et al., 2024). As such, Winter
+about \$195 million in damages (Zhou et al., 2024). As such, Winter
 Storm Uri is listed as the costliest and one of the deadliest natural
 disasters in Texan history.
 
-
 The City of Houston, the county’s most populous city, had an estimated
-population of 2,333,346 in 2023 with a median household income of $62,894 (DataUSA, n.d.) . The city experienced a population growth of approximately 0.18% and a median household income increase of about 4.06% (DataUSA, n.d.). Houston was one of several urban centers in Harris County that were significantly affected by the storm and is a key
+population of 2,333,346 in 2023 with a median household income of
+\$62,894 (DataUSA, n.d.) . The city experienced a population growth of
+approximately 0.18% and a median household income increase of about
+4.06% (DataUSA, n.d.). Houston was one of several urban centers in
+Harris County that were significantly affected by the storm and is a key
 area for analysis.
 
 The purpose of this assignment is to assess the extent to which houses
@@ -37,12 +50,8 @@ assessment of median income for census tracts affected by the blackout
 based on socioeconomic data. The following research question was
 referenced to guide the analysis:
 
-
 **To what extent were homes and census tracts in Houston impacted by the
 power outage caused by Winter Storm Uri?**
-
-
-
 
 ## Load in required packages
 
@@ -448,35 +457,36 @@ print(paste("About",
 ```
 
 ```{r}
-# Create an affected/unaffected column in a copy of buildings
+# Filter for buildings not in affected buildings
 buildings_unaffected_blackout <- buildings %>%
   filter(!osm_id %in% buildings_affected_blackout$osm_id) %>%
-  st_centroid()
+  st_centroid() # Convert polygons to center points
 
 ```
 
 ```{r}
 #| warning: false
 #| message: false
-affected_homes_map <- tm_basemap("OpenStreetMap") +
+# Create map for homes affected vs not affected by the blackout
+affected_homes_map <- tm_basemap("OpenStreetMap") + # Basemap
 
-  # UNAFFECTED homes (faded)
+  # Unaffected homes (faded)
   tm_shape(buildings_unaffected_blackout) +
-  tm_dots(
-    col = "#8968CD",           # Gray
-    size = 0.02,              # Smaller dots
-    alpha = 0.2,              # MORE transparent
-    title = "Home Status",
-    labels = "Not Affected"
+  tm_dots( # Draw as points
+    col = "#2C7FB8", 
+    size = 0.02, # Adjust for smaller points
+    alpha = 0.2, # Fix transparency
+    title = "Home Status", # Legend title
+    labels = "Not Affected" # Legend label
   ) +
 
   # AFFECTED homes (strong emphasis)
   tm_shape(buildings_affected_blackout) +
   tm_dots(
-    col = "darkred",              # Bright red
+    col = "#B30000",              # Bright red
     size = 0.05,              # Larger dots
     alpha = 0.9,              # Nearly solid
-    title = "Home Status",
+    title = "Home Status", # Legend title
     labels = "Affected"
   ) +
 
@@ -489,37 +499,9 @@ affected_homes_map <- tm_basemap("OpenStreetMap") +
     legend.outside = TRUE
   ) + 
   tm_add_legend(type = "symbol",
-              col = c("#8968CD", "darkred"),
+              col = c("#2C7FB8", "#B30000"),
               labels = c("Not Affected", "Affected"),
               title = "Home Status")
-
-
-```
-
-
-```{r}
-#| warning: false
-#| message: false
-# Create map for homes affected vs non affected by the blackout
-affected_homes_map <- tm_shape(buildings_status) +
-   tm_polygons(alpha = "Status",
-            alpha.palette = c("Affected" = 1, "Not Affected" = 0.2),
-            col = "Status",
-            palette = c("Affected" = "red", "Not Affected" = "grey80")) + 
-  
-  tm_basemap(server = "OpenStreetMap") + # Establish basemap 
-  
-   tm_scale_bar( # Add scale bar for scale
-    position = c("left", "bottom")) +
- 
-   tm_compass( # Add compass for orientation
-    type = "8star",        
-    position = c("right", "top"),
-  ) +
-  
-  tm_layout(
-    main.title = "Homes in Houston Affected by the Blackout",
-    main.title.position = "center") # Center title
 
 # View map in cell block output
 affected_homes_map
@@ -529,9 +511,8 @@ tmap_save(affected_homes_map,
           "figs/Homes_in_Houston_Affected_by_Blackout.png")
 ```
 
-![](figs/Homes_in_Houston_Affected_by_Blackout.png)
-**Map 3. Finalized Version of homes in Houston impacted by the winter
-storm blackout.**
+![](figs/Homes_in_Houston_Affected_by_Blackout.png) **Map 3. Finalized
+Version of homes in Houston impacted by the winter storm blackout.**
 
 ## Part 4: Identify impacted census tracts
 

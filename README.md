@@ -17,7 +17,7 @@ This repository contains:
 ```         
 Lights Out in Houston: Mapping the Effects of Winter Storm Uri
 └───README.md
-└───eds-223-hw-3.pdf    
+└───Mapping_the_Effects_of_Winter_Storm_Uri.pdf    
 └───eds-223-hw-3.Rproj    
 └───Mapping_the_Effects_of_Winter_Storm_Uri.qmd 
 └─── figs
