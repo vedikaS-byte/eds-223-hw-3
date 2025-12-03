@@ -12,11 +12,9 @@ editor_options:
   chunk_output_type: console
 ---
 
-# Lights Out in Houston: Mapping the Effects of Winter Storm Uri
-
 ![](images/clipboard-2841720978.png)
 
-![](images/clipboard-540590989.png)
+![](images/clipboard-3798717421.png)
 
 ![](images/clipboard-2271677895.png)
 
@@ -428,8 +426,9 @@ buildings <- read_sf(
 
 16. Selects all building features that intersect areas of blackout not
     overlapping highways, using `st_filter()` with the `st_intersects`
-    predicate. Then, create a map showcasing the affected homes in
-    Houston.
+    predicate. Be sure to also define a new geospatial object for houses
+    that were unaffected by the blackout. Then, create a map showcasing
+    the affected homes in Houston.
 
 ```{r}
 # Ensure CRS of buildings and blackout_not_highway match
@@ -443,10 +442,12 @@ if (st_crs(buildings) != st_crs(blackout_not_highway)) {
 ```
 
 ```{r}
+#| warning: false
 # Obtain intersecting (attribute) features of buildings 
 # and blackout_not_highway
 buildings_affected_blackout <- st_filter(buildings, blackout_not_highway, 
-                                         .predicate = st_intersects) %>% st_centroid() # Convert polygons to center points
+                                         .predicate = st_intersects) %>% 
+  st_centroid() # Convert polygons to center points
 
 
 # Identify the number of impacted homes
@@ -457,7 +458,9 @@ print(paste("About",
 ```
 
 ```{r}
-# Filter for buildings not in affected buildings
+#| warning: false
+#| message: false
+# Filter for homes not in affected buildings
 buildings_unaffected_blackout <- buildings %>%
   filter(!osm_id %in% buildings_affected_blackout$osm_id) %>%
   st_centroid() # Convert polygons to center points
@@ -470,7 +473,7 @@ buildings_unaffected_blackout <- buildings %>%
 # Create map for homes affected vs not affected by the blackout
 affected_homes_map <- tm_basemap("OpenStreetMap") + # Basemap
 
-  # Unaffected homes (faded)
+  # Unaffected homes
   tm_shape(buildings_unaffected_blackout) +
   tm_dots( # Draw as points
     col = "#2C7FB8", 
@@ -480,28 +483,33 @@ affected_homes_map <- tm_basemap("OpenStreetMap") + # Basemap
     labels = "Not Affected" # Legend label
   ) +
 
-  # AFFECTED homes (strong emphasis)
+  # Affected homes
   tm_shape(buildings_affected_blackout) +
-  tm_dots(
-    col = "#B30000",              # Bright red
-    size = 0.05,              # Larger dots
-    alpha = 0.9,              # Nearly solid
+  tm_dots( # Draw as points
+    col = "#B30000", 
+    size = 0.05,  # Adjust for larger points
+    alpha = 0.6,  # Emphasize impacted homes
     title = "Home Status", # Legend title
-    labels = "Affected"
+    labels = "Affected" # Legend label
   ) +
 
-  tm_scale_bar(position = c("left", "bottom")) +
+  tm_scale_bar(position = c("left", "bottom")) + # Add scale bar
+  
+  # Add compass for orientation
   tm_compass(type = "8star", position = c("right", "top")) +
-
-  tm_layout(
+  
+ 
+  tm_layout( # Define map title
     main.title = "Homes in Houston Affected by the Blackout",
-    main.title.position = "center",
-    legend.outside = TRUE
+    main.title.position = "center", # Center title
+    legend.outside = TRUE # Position legend outside frame
   ) + 
-  tm_add_legend(type = "symbol",
-              col = c("#2C7FB8", "#B30000"),
-              labels = c("Not Affected", "Affected"),
-              title = "Home Status")
+  
+  # Force legend to be added
+  tm_add_legend(type = "symbol", # Enable symbols for representation 
+              col = c("#2C7FB8", "#B30000"), # Colors for home status
+              labels = c("Not Affected", "Affected"), # Home status
+              title = "Home Status") # Legend title
 
 # View map in cell block output
 affected_homes_map
