@@ -12,14 +12,6 @@ editor_options:
   chunk_output_type: console
 ---
 
-![](images/clipboard-2841720978.png)
-
-![](images/clipboard-3798717421.png)
-
-![](images/clipboard-2271677895.png)
-
-![](images/clipboard-1234688113.png)
-
 ### Primary Objective
 
 Winter Storm Uri was a powerful and catastrophic winter storm that
